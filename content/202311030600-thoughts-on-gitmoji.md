@@ -1,5 +1,6 @@
 +++
 title = "My thoughts on gitmoji"
+summary = "Just use conventional commits, keep things simple."
 date = 2023-11-03
 +++
 

@@ -1,4 +1,4 @@
-title = "Welcome to my page"
+title = "👋 Welcome"
 description = "Here are my projects, my thoughts and other things."
 
 # The URL the site will be built for
@@ -31,7 +31,6 @@ highlight_theme = "solarized-dark"
 [extra]
 # Put all your custom variables here
 site_menus = [
-  { url = "https://github.com/jdrouet", name = "Github" },
-  { url = "/atom.xml", name = "RSS" },
+    { url = "https://mamot.fr/@jdrouet", name = "Mastodon" },
+    { url = "https://github.com/jdrouet", name = "Github" },
 ]
-
