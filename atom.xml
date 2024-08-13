@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en">
+    <title>👋 Welcome</title>
+    <subtitle>Here are my projects, my thoughts and other things.</subtitle>
+    <link rel="self" type="application/atom+xml" href="/atom.xml"/>
+    <link rel="alternate" type="text/html" href="/"/>
+    <generator uri="https://www.getzola.org/">Zola</generator>
+    <updated>2024-08-04T00:00:00+00:00</updated>
+    <id>/atom.xml</id>
+    <entry xml:lang="en">
+        <title>Build metrics and budgets with git-metrics</title>
+        <published>2024-08-04T00:00:00+00:00</published>
+        <updated>2024-08-04T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Jérémie Droue&lt;jeremie.drouet@gmail.com&gt;
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="/202408041030-git-metrics/"/>
+        <id>/202408041030-git-metrics/</id>
+        
+        <content type="html" xml:base="/202408041030-git-metrics/">&lt;p&gt;Monitoring metrics for a project can be challenging. Deciding what to track, determining the cardinality of each tag, naming the metrics, and choosing what should be split into a tag or kept as a metric are all complex tasks that require experience.&lt;&#x2F;p&gt;
+&lt;p&gt;But monitoring the run of your project is not the only thing we need to monitor; the development phase is also important. Code coverage is a good example of how we monitor the build of a project. Many projects implement rules to prevent code coverage from decreasing. In the frontend world, there is a growing trend to track metrics such as page size and load time. This kind of monitoring might seem less complicated, but determining where and how to store the metrics is more challenging.&lt;&#x2F;p&gt;
+&lt;p&gt;In recent years, I&#x27;ve been working on several projects where I wanted to put in place such boundaries. When looking at how to implement that, I always ended up using multiple external services or deploying applications to store those metrics that I would have to keep running all the time. This didn&#x27;t match my requirements. I wanted to keep that cheap in terms of resource usage and low in terms of maintenance. I don&#x27;t want to have a VPS running 24&#x2F;7 just to push some metrics.&lt;&#x2F;p&gt;
+&lt;p&gt;With global warming already well established, and human activity being the principal reason for it, we should rethink the way we build software. We cannot keep increasing exponentially the resource usage of our systems. Therefore, we need to put in place boundaries on the projects we build.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;state-of-the-art&quot;&gt;State of the Art&lt;&#x2F;h2&gt;
+&lt;p&gt;For open-source projects, many SaaS platforms offer free tiers for monitoring. For tracking code coverage, you can use &lt;a href=&quot;https:&#x2F;&#x2F;codecov.io&quot;&gt;Codecov&lt;&#x2F;a&gt; or &lt;a href=&quot;https:&#x2F;&#x2F;coveralls.io&quot;&gt;Coveralls&lt;&#x2F;a&gt;. For tracking complexity, &lt;a href=&quot;https:&#x2F;&#x2F;codeclimate.com&quot;&gt;CodeClimate&lt;&#x2F;a&gt; is a good option. These platforms integrate well with GitHub repositories.&lt;&#x2F;p&gt;
+&lt;p&gt;For closed-source projects, these SaaS platforms offer paid subscriptions, which may require budget considerations. Alternatively, if your DevOps team has the bandwidth, you can set up tools like &lt;a href=&quot;https:&#x2F;&#x2F;www.sonarsource.com&#x2F;products&#x2F;sonarqube&#x2F;&quot;&gt;SonarQube&lt;&#x2F;a&gt; for in-house monitoring.&lt;&#x2F;p&gt;
+&lt;p&gt;However, be prepared for potential vendor lock-in, which can make switching services or losing historical data problematic.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;alternative-approach&quot;&gt;Alternative Approach&lt;&#x2F;h2&gt;
+&lt;p&gt;Shouldn’t the metrics related to the code be attached to the code itself?&lt;&#x2F;p&gt;
+&lt;p&gt;Some projects, such as &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;actions&#x2F;typescript-action&quot;&gt;typescript-action&lt;&#x2F;a&gt;, version code coverage alongside the code. This approach isn&#x27;t perfect, as it requires developers to update the metrics for each commit, or you need a CI job to keep them in sync. However, keeping metrics directly in Git is appealing as it provides easy access and avoids reliance on external services. Switching from GitHub to GitLab, for instance, would be as simple as pushing the repository.&lt;&#x2F;p&gt;
+&lt;p&gt;To address synchronization issues, instead of writing these metrics with the code, they can be kept next to it. Git offers a feature called &lt;a href=&quot;https:&#x2F;&#x2F;git-scm.com&#x2F;docs&#x2F;git-notes&quot;&gt;&lt;code&gt;notes&lt;&#x2F;code&gt;&lt;&#x2F;a&gt;, which allows attaching textual data to a commit reference.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;solution-implementation&quot;&gt;Solution Implementation&lt;&#x2F;h2&gt;
+&lt;p&gt;This is where &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;jdrouet&#x2F;git-metrics&quot;&gt;&lt;code&gt;git-metrics&lt;&#x2F;code&gt;&lt;&#x2F;a&gt; comes into play.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;basic-usage&quot;&gt;Basic Usage&lt;&#x2F;h3&gt;
+&lt;p&gt;With &lt;code&gt;git-metrics&lt;&#x2F;code&gt;, you can attach, replace, or remove metrics for a given commit with a simple command:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#002b36;color:#839496;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; git-metrics add my-metric-name&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt; --tag &lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;foo: bar&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot; 1024.0
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;To show the metrics attached to a given commit:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#002b36;color:#839496;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; git metrics show &lt;&#x2F;span&gt;&lt;span style=&quot;color:#657b83;&quot;&gt;&amp;lt;&lt;&#x2F;span&gt;&lt;span&gt;commit-sha&lt;&#x2F;span&gt;&lt;span style=&quot;color:#657b83;&quot;&gt;&amp;gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;my-metric-name{foo&lt;&#x2F;span&gt;&lt;span&gt;=&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;bar&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;} &lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;1024.0
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;To display a list of all commits, or within a commit range:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#002b36;color:#839496;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; git metrics diff HEAD&lt;&#x2F;span&gt;&lt;span style=&quot;color:#d33682;&quot;&gt;~&lt;&#x2F;span&gt;&lt;span&gt;2..HEAD
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;-&lt;&#x2F;span&gt;&lt;span&gt; my-metric-name&lt;&#x2F;span&gt;&lt;span style=&quot;color:#657b83;&quot;&gt;{&lt;&#x2F;span&gt;&lt;span&gt;foo=&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;bar&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#657b83;&quot;&gt;}&lt;&#x2F;span&gt;&lt;span&gt; 512.0
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;+&lt;&#x2F;span&gt;&lt;span&gt; my-metric-name&lt;&#x2F;span&gt;&lt;span style=&quot;color:#657b83;&quot;&gt;{&lt;&#x2F;span&gt;&lt;span&gt;foo=&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;bar&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#657b83;&quot;&gt;}&lt;&#x2F;span&gt;&lt;span&gt; 1024.0 (+200.00 &lt;&#x2F;span&gt;&lt;span style=&quot;color:#859900;&quot;&gt;%&lt;&#x2F;span&gt;&lt;span&gt;)
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;These commands provide a solid foundation, but there are additional features worth exploring.&lt;&#x2F;p&gt;
+&lt;h3 id=&quot;extra-features&quot;&gt;Extra features&lt;&#x2F;h3&gt;
+&lt;h4 id=&quot;budget-management&quot;&gt;Budget management&lt;&#x2F;h4&gt;
+&lt;p&gt;Tracking metrics is useful, but the goal is to improve the codebase or project. One way to ensure this is by blocking commits that don’t meet certain metric criteria, a feature already used by many external services.&lt;&#x2F;p&gt;
+&lt;p&gt;With &lt;code&gt;git-metrics&lt;&#x2F;code&gt;, you can configure rules by adding a &lt;code&gt;.git-metrics.toml&lt;&#x2F;code&gt; file to your repository:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;toml&quot; style=&quot;background-color:#002b36;color:#839496;&quot; class=&quot;language-toml &quot;&gt;&lt;code class=&quot;language-toml&quot; data-lang=&quot;toml&quot;&gt;&lt;span style=&quot;color:#586e75;&quot;&gt;# fails when increase size is above 10%
+&lt;&#x2F;span&gt;&lt;span&gt;[[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;metrics&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;binary-size&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;rules&lt;&#x2F;span&gt;&lt;span&gt;]]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;max-increase&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;ratio &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#6c71c4;&quot;&gt;0.1
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#586e75;&quot;&gt;# fails when the size increases by more that 1MB
+&lt;&#x2F;span&gt;&lt;span&gt;[[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;metrics&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;binary-size&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;rules&lt;&#x2F;span&gt;&lt;span&gt;]]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;max-increase&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;value &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#6c71c4;&quot;&gt;1048576.0
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#586e75;&quot;&gt;# fails when binary size is more than 10MB
+&lt;&#x2F;span&gt;&lt;span&gt;[[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;metrics&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;binary-size&lt;&#x2F;span&gt;&lt;span&gt;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;rules&lt;&#x2F;span&gt;&lt;span&gt;]]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;max&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;value &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#6c71c4;&quot;&gt;10485760.0
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#586e75;&quot;&gt;# fails when the code coverage goes below 80%
+&lt;&#x2F;span&gt;&lt;span&gt;[[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;metrics&lt;&#x2F;span&gt;&lt;span&gt;.&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;coverage.lines.percentage&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;rules&lt;&#x2F;span&gt;&lt;span&gt;]]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;min&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;value &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#6c71c4;&quot;&gt;0.8
+&lt;&#x2F;span&gt;&lt;span&gt;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#586e75;&quot;&gt;# fails when the code coverage decreases of more than 5%
+&lt;&#x2F;span&gt;&lt;span&gt;[[&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;metrics&lt;&#x2F;span&gt;&lt;span&gt;.&amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;coverage.lines.percentage&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;.&lt;&#x2F;span&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;rules&lt;&#x2F;span&gt;&lt;span&gt;]]
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;type &lt;&#x2F;span&gt;&lt;span&gt;= &amp;quot;&lt;&#x2F;span&gt;&lt;span style=&quot;color:#2aa198;&quot;&gt;max-decrease&lt;&#x2F;span&gt;&lt;span&gt;&amp;quot;
+&lt;&#x2F;span&gt;&lt;span style=&quot;color:#268bd2;&quot;&gt;ratio &lt;&#x2F;span&gt;&lt;span&gt;= &lt;&#x2F;span&gt;&lt;span style=&quot;color:#6c71c4;&quot;&gt;0.05
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;Running &lt;code&gt;git-metrics check&lt;&#x2F;code&gt; from your CI after adding your metrics will inform you if your changes meet the specified budget.&lt;&#x2F;p&gt;
+&lt;h4 id=&quot;importing-from-other-file-formats&quot;&gt;Importing from other file formats&lt;&#x2F;h4&gt;
+&lt;p&gt;Manually adding metrics with the &lt;code&gt;add&lt;&#x2F;code&gt; command can be cumbersome, especially for derived metrics. For instance, after computing code coverage, you might end up with an &lt;code&gt;lcov&lt;&#x2F;code&gt; file, which needs to be processed to extract useful metrics. &lt;code&gt;git-metrics&lt;&#x2F;code&gt; can handle this:&lt;&#x2F;p&gt;
+&lt;pre data-lang=&quot;bash&quot; style=&quot;background-color:#002b36;color:#839496;&quot; class=&quot;language-bash &quot;&gt;&lt;code class=&quot;language-bash&quot; data-lang=&quot;bash&quot;&gt;&lt;span style=&quot;color:#b58900;&quot;&gt;$&lt;&#x2F;span&gt;&lt;span&gt; git-metrics import lcov .&#x2F;lcov.info
+&lt;&#x2F;span&gt;&lt;&#x2F;code&gt;&lt;&#x2F;pre&gt;
+&lt;p&gt;This command adds summary metrics such as &lt;code&gt;coverage.lines.count&lt;&#x2F;code&gt;, &lt;code&gt;coverage.functions.hit&lt;&#x2F;code&gt;, or &lt;code&gt;coverage.branches.percentage&lt;&#x2F;code&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;Currently, &lt;code&gt;git-metrics&lt;&#x2F;code&gt; supports only &lt;code&gt;lcov&lt;&#x2F;code&gt; files, but more formats will be supported as the tool evolves.&lt;&#x2F;p&gt;
+&lt;h2 id=&quot;conclusion&quot;&gt;Conclusion&lt;&#x2F;h2&gt;
+&lt;p&gt;&lt;code&gt;git-metrics&lt;&#x2F;code&gt; is in its early stages but already provides essential commands for tracking metrics, creating budgets, and blocking contributions that don’t meet the budget criteria, all within your git repository.&lt;&#x2F;p&gt;
+&lt;p&gt;Similar to the mentioned SaaS solutions, git-metrics offers &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;jdrouet&#x2F;action-git-metrics&quot;&gt;GitHub actions&lt;&#x2F;a&gt; for installation, tracking, and checking metrics. GitLab support is expected soon.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+    <entry xml:lang="en">
+        <title>My thoughts on gitmoji</title>
+        <published>2023-11-03T00:00:00+00:00</published>
+        <updated>2023-11-03T00:00:00+00:00</updated>
+        
+        <author>
+          <name>
+            
+              Jérémie Droue&lt;jeremie.drouet@gmail.com&gt;
+            
+          </name>
+        </author>
+        
+        <link rel="alternate" type="text/html" href="/202311030600-thoughts-on-gitmoji/"/>
+        <id>/202311030600-thoughts-on-gitmoji/</id>
+        
+        <content type="html" xml:base="/202311030600-thoughts-on-gitmoji/">&lt;p&gt;First, &lt;strong&gt;I have nothing against conventional commits.&lt;&#x2F;strong&gt; Enforcing conventions when working on a project or codebase is the best way to maintain a clean and understandable project. While it may take time for newcomers to join and adopt these conventions, once they do, it becomes easier for them to contribute.&lt;&#x2F;p&gt;
+&lt;p&gt;I have been accustomed to using conventional commits in most of my personal projects or previous work projects. It helps to keep commits atomic, making it easier to read the changes in pull&#x2F;merge requests. When you merge these commits into your main branch, it becomes easier to understand the complete history of the product. Additionally, it allows you to automatically generate your changelog.&lt;&#x2F;p&gt;
+&lt;p&gt;Lately, gitmoji has emerged as a replacement for the traditional keywords like &lt;code&gt;feat&lt;&#x2F;code&gt;, &lt;code&gt;build&lt;&#x2F;code&gt;, &lt;code&gt;fix&lt;&#x2F;code&gt;, etc. in commit messages. Instead, it uses emojis like ✨, 👷, 🐛 or other keywords like &lt;code&gt;sparkles&lt;&#x2F;code&gt;, &lt;code&gt;construction_worker&lt;&#x2F;code&gt;, &lt;code&gt;bug&lt;&#x2F;code&gt;, which are then automatically replaced by emojis on GitHub. This has resulted in a history full of emojis on GitHub, which can be deciphered by those familiar with them. You can check out an example of this &lt;a href=&quot;https:&#x2F;&#x2F;github.com&#x2F;carloscuesta&#x2F;gitmoji&#x2F;commits&#x2F;master&quot;&gt;here&lt;&#x2F;a&gt;.&lt;&#x2F;p&gt;
+&lt;p&gt;I personally believe that this is slowing people down without adding real value. First, you need to maintain a mind map of what each emoji represents. For example, when you write your commit, you might think, &quot;It&#x27;s a feature, so I have to write &lt;code&gt;sparkles&lt;&#x2F;code&gt; or use that emoji.&quot; Similarly, when you read someone else&#x27;s commit, you have to remember the meaning behind each emoji.&lt;&#x2F;p&gt;
+&lt;p&gt;Additionally, I&#x27;m curious about the accessibility implications of using this method to mark commits. How does it appear to individuals with color blindness, or how does it function with tools used by blind individuals? Are we unintentionally creating a gap that will require additional tools to address?&lt;&#x2F;p&gt;
+&lt;p&gt;But what if I really love emojis and want to see them everywhere? Why not develop a browser extension that, when you visit a Github repository, replaces all instances of &lt;code&gt;feat&lt;&#x2F;code&gt; with a ✨, and so on? This way, I can have the same user experience without adding any barriers to the existing ones.&lt;&#x2F;p&gt;
+&lt;p&gt;As a conclusion: use conventional commits, it’s great for you, great for your project and great for people that will contribute to it. Keep it simple. Avoid unnecessary gaps.&lt;&#x2F;p&gt;
+</content>
+        
+    </entry>
+</feed>
