@@ -31,6 +31,6 @@ highlight_theme = "solarized-dark"
 [extra]
 # Put all your custom variables here
 site_menus = [
-    { url = "https://mamot.fr/@jdrouet", name = "Mastodon" },
-    { url = "https://github.com/jdrouet", name = "Github" },
+    { url = "https://mamot.fr/@jdrouet", name = "Mastodon", external = true },
+    { url = "https://github.com/jdrouet", name = "Github", external = true },
 ]
