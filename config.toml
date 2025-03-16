@@ -33,4 +33,5 @@ highlight_theme = "solarized-dark"
 site_menus = [
     { url = "https://mamot.fr/@jdrouet", name = "Mastodon", external = true },
     { url = "https://github.com/jdrouet", name = "Github", external = true },
+    { url = "mailto:contact@jdrouet.fr", name = "Contact", external = true },
 ]
