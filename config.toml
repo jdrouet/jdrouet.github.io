@@ -17,7 +17,7 @@ minify_html = true
 # When set to "true", a feed is automatically generated.
 generate_feeds = true
 
-author = "Jérémie Droue<jeremie.drouet@gmail.com>"
+author = "Jérémie Drouet <jeremie.drouet@gmail.com>"
 
 theme = "solar-theme-zola"
 
