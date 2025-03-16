@@ -1,0 +1,99 @@
+{%- macro page_in_list(page) -%}
+<article class="page">
+  <h2>
+      <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
+  </h2>
+  <div class="page-info">
+    <div class="entry">
+        {%- if page.description %}
+        {{ page.description | safe }}
+        {%- else %}
+        {{ page.content | spaceless | striptags | truncate(length=200) }}
+        {%- endif %}
+    </div>
+  </div>
+  <time class="smaller" datetime="{{ page.date | date(format="%Y-%m-%dT%H:%M:%S%:z") }}">
+    {{ macros::page_timestamp(page=page) }}
+  </time>
+
+  <div class="page-footer">
+    {%- if page.description %}
+    <a href="{{ page.permalink | safe }}" class="read-more">Read More</a>
+    {%- endif %}
+  </div>
+</article>
+{% endmacro page_in_list %}
+
+{% macro get_edit_url(page) %}
+{%- set url = ["https://github.com", config.extra.github.username, config.extra.github.repo, "edit/main/content" , page.relative_path] | join(sep="/" ) %}
+<a href="{{ url | safe }}" title="Help improve page {{ page.permalink | safe }}">Improve this page</a>
+{% endmacro get_edit_url %}
+
+{%- macro page_timestamp(page) -%}
+Posted on {{ page.date | date(format=config.extra.timeformat | default(value="%B %e, %Y"), timezone=config.extra.timezone | default(value="Europe/Paris")) }}
+{%- endmacro page_timestamp %}
+
+{%- macro seo(
+  title="",
+  title_addition="",
+  description="",
+  type="website",
+  is_home=false,
+  is_404=false,
+  is_page=false
+  )
+%}
+
+{%- if page.date %}
+{%- set created_date = page.date | date(format="%+") %}
+{%- endif %}
+
+{%- if is_404 %}
+<meta name="robots" content="noindex, follow">
+{%- else %}
+<meta name="robots" content="index, follow">
+<meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+<meta name="bingbot" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
+{%- endif %}
+{%- if current_url %}
+	{%- set page_url = current_url %}
+{%- else %}
+	{%- set page_url = get_url(path="404.html") %}
+{%- endif %}
+{%- if current_path %}
+	{%- set page_path = current_path %}
+{%- else %}
+	{%- set page_path = "/404.html" %}
+{%- endif %}
+
+<title>{{ title ~ title_addition }}</title>
+<meta name="generator" content="Zola">
+<meta name="description" content="{{ description }}">
+<meta name="author" content="{{ config.author }}">
+<link rel="canonical" href="{{ page_url | safe }}">
+
+{%- if config.extra.opengraph %}
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ description }}">
+  <meta property="og:type" content="{{ type }}">
+  <meta property="og:url" content="{{ page_url | safe }}">
+
+  {%- if page.extra.images %}
+    {%- for image in page.extra.images %}
+      <meta property="og:image" content="{{ get_url(path=image) | safe }}">
+    {%- endfor %}
+  {%- elif section.extra.images %}
+    {%- for image in section.extra.images %}
+      <meta property="og:image" content="{{ get_url(path=image) | safe }}">
+    {%- endfor %}
+  {%- elif config.extra.logo %}
+    <meta property="og:image" content="{{ get_url(path=config.extra.logo) | safe }}">
+  {%- endif %}
+
+  <meta property="og:site_name" content="{{ title }}">
+  <meta property="og:locale" content="{{ config.extra.language_code | default(value="en-US") | replace(from="-", to="_") }}">
+  {%- if page.date %}
+    <meta property="article:published_time" content="{{ created_date }}">
+  {%- endif %}
+{%- endif %}
+{%- endmacro %}

@@ -1,7 +1,10 @@
 +++
 title = "My thoughts on gitmoji"
-summary = "Just use conventional commits, keep things simple."
+description = "Just use conventional commits, keep things simple."
 date = 2023-11-03
+
+[taxonomies]
+tags = ["git", "good practices"]
 +++
 
 First, **I have nothing against conventional commits.** Enforcing conventions when working on a project or codebase is the best way to maintain a clean and understandable project. While it may take time for newcomers to join and adopt these conventions, once they do, it becomes easier for them to contribute.

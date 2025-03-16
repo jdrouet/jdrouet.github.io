@@ -1,0 +1,7 @@
+{%- set socials = load_data(path="data/socials.yml") -%}
+{%- for link in config.extra.social_links -%}
+  {%- if link.user_id -%}
+  {%- set social = socials | filter(attribute="platform", value=link.platform) | first %}
+    <a href="{% if link.platform != 'feed' %}{{ social.url ~ link.user_id }}{% else %}{{ social.url | safe }}{% endif %}"><i class="svg-icon icon-{{ social.icon }}"></i></a>
+  {%- endif -%}
+{%- endfor -%}

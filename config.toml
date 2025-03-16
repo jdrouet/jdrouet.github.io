@@ -1,37 +1,116 @@
-title = "👋 Welcome"
+# The URL the site will be built for
+base_url = "/"
+
+# The title of the site
+title = "👋 Hello"
+
+# The description of the site
 description = "Here are my projects, my thoughts and other things."
 
-# The URL the site will be built for
-# base_url = "https://jdrouet.github.io"
-base_url = "/"
+author = "Jérémie Drouet"
 
 # Whether to automatically compile all Sass files in the sass directory
 compile_sass = true
 
-# Whether to build a search index to be used later on by a JavaScript library
-build_search_index = false
-
-# When set to "true", the generated HTML files are minified.
+# Whether to minify the HTML when building the site
 minify_html = true
 
-# When set to "true", a feed is automatically generated.
+# Whether to generate an Atom feed
 generate_feeds = true
 
-author = "Jérémie Drouet <jeremie.drouet@gmail.com>"
-
-theme = "solar-theme-zola"
+# Taxonomies
+taxonomies = [{ name = "tags" }]
 
 [markdown]
-# extra_syntaxes_and_themes = ["highlight_themes"]
 # Whether to do syntax highlighting
 # Theme can be customised by setting the `highlight_theme` variable to a theme supported by Zola
 highlight_code = true
-highlight_theme = "solarized-dark"
+highlight_theme = "charcoal"
+
+# Whether to render emojis
+render_emoji = true
+
+# Whether footnotes are rendered in the GitHub-style (at the bottom, with back references) or plain (in the place, where they are defined)
+bottom_footnotes = true
 
 [extra]
-# Put all your custom variables here
-site_menus = [
-    { url = "https://mamot.fr/@jdrouet", name = "Mastodon", external = true },
-    { url = "https://github.com/jdrouet", name = "Github", external = true },
-    { url = "mailto:contact@jdrouet.fr", name = "Contact", external = true },
+title_separator = " > " # set as |, -, _, etc
+
+# The path to the logo of the site
+logo = "images/logo.png"
+
+# Menu items
+menu = [{ url = "/", name = "Home" }]
+
+language_code = "en-US"
+
+# Enable OpenGraph metadata
+opengraph = true
+
+timezone = "Europe/Paris"
+
+# Date and time format for displaying post dates.
+# If left empty, the default format will be used: "%B %e, %Y at %H:%M %Z".
+# Example of a custom format: "%Y-%m-%d %H:%M:%S %z" (2024-02-04 15:30:00 +0000)
+timeformat = "%Y-%m-%d"
+
+# The path to cv file if you use cv shortcode
+# cv_file = "/files/Curriculum_Vitae.pdf"
+
+# provide link to edit page on github
+edit_page = false
+
+# Use theme specific tags page based on templates/tags.html
+simplified_tags = true
+
+# Social links
+social_links = [
+    { platform = "email", user_id = "contact@jdrouet.fr" },
+    { platform = "github", user_id = "jdrouet" },
+    { platform = "linkedin", user_id = "jeremiedrouet" },
+    { platform = "feed", user_id = true },
+]
+
+# GitHub settings that are used to generate the edit page link
+[extra.github]
+username = "jdrouet"
+repo = "jdrouet.github.io"
+
+
+[extra.linkedin]
+username = "jeremiedrouet"
+
+# Giscus settings
+# Please refer to https://giscus.app/ for more information
+# and don't use the same repo_id and category_id as in the example below
+# [extra.giscus]
+# repo = "en9inerd/zola-hacker"
+# repo_id = "R_kgDOMZOW5g"
+# category = "Comments"
+# category_id = "DIC_kwDOMZOW5s4ChFNw"
+# mapping = "og:title"
+# strict = 0
+# reactions_enabled = 1
+# emit_metadata = 0
+# input_position = "top"
+# theme = "dark"
+# lang = "en"
+# loading = "lazy"
+# crossorigin = "anonymous"
+
+# PGP key
+# [extra.pgp_key]
+# url = "https://keys.openpgp.org/vks/v1/by-fingerprint/0000000000000000000000000000000000000000"
+# fingerprint = "0000 0000 0000 0000 0000 0000 0000 0000 0000 0000"
+
+# JSON-LD metadata
+[extra.bio]
+gender = "male"
+# employer_name = "Unknown"
+# employer_url = "https://unknown.com"
+job_title = "Senior Rust Software Engineer"
+links = [
+    "https://github.com/jdrouet",
+    #     "https://linkedin.com/in/johndoe",
+    #     "https://twitter.com/johndoe",
 ]
