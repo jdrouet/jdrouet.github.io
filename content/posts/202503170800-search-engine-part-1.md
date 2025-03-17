@@ -126,7 +126,7 @@ This `FileSystemSyncAccessHandle` provides the capability to read and write from
 
 I'm not going to elaborate more about this, it's probably enough already, but if you're interested about its implementation, I've made a crate out of it, [browser-fs](https://crates.io/crates/browser-fs), that can be used like `web-fs`, but without the overhead.
 
-### Merging the different implementations
+### Merging The Different Implementations
 
 Now that there is a way to write to the filesystem from any platform, creating a module for accessing the filesystem will be as simple as
 
@@ -136,3 +136,119 @@ use browser_fs::*;
 #[cfg(not(target_arch = "wasm32"))]
 use async_fs::*;
 ```
+
+## The Encryption Layer
+
+I started with a quite simple question: how do we encrypt data efficiently without compromising security? After evaluating several options, I landed on [`aes-gcm`](https://en.wikipedia.org/wiki/Galois/Counter_Mode) (AES Galois/Counter Mode). This choice wasn't random, AES-GCM gives us two crucial guarantees: our data stays confidential and we can verify its authenticity. Plus, the [aes-gcm](https://crates.io/crates/aes-gcm) crate provides a battle-tested implementation we can trust.
+
+I initially considered implementing streaming encryption, which would let us read and write encrypted content directly on the filesystem. It seemed elegant on paper - why load entire files into memory when we could stream them? But as I dug deeper, I realized I was potentially overcomplicating things. Here's why:
+
+1. Implementing streaming encryption with both authenticity and confidentiality is tricky
+2. Making it play nice with async operations would add even more complexity
+3. Given our use case (small index files optimized for mobile sync), the benefits wouldn't justify the complexity
+
+What sealed the deal for me was discovering that modern browsers support AES-GCM through their [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API). This means we could potentially offload encryption tasks to the browser's native implementation, saving both processing power and WASM bundle size.
+
+### The Cipher Implementation
+
+Let's walk through how I built the encryption layer. First, we need a way to carry our cipher around. Since we'll be using it across different file instances and possibly different threads, we want something that's both clone-able and thread-safe:
+
+```rust
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct Cipher(Arc<aes_gcm::Aes256Gcm>);
+```
+
+Now, how do we create new ciphers? We need a way to initialize them with a key. Here's what I came up with:
+
+```rust
+impl Cipher {
+    pub fn from_key(input: &[u8]) -> Result<Self, Error> {
+        aes_gcm::Aes256Gcm::new_from_slice(input)
+            .map(|inner| Self(Arc::new(inner)))
+            .map_err(|_| Error::InvalidKeyLength)
+    }
+}
+```
+
+The interesting part comes with encryption and decryption. AES-GCM requires a unique `nonce` (number used once) for each message. Instead of asking users to manage nonces themselves - which would be error-prone - I decided to generate a new one for each encryption and prefix it to the encrypted data. This way, decryption becomes straightforward as the nonce is right there in the data:
+
+```rust
+impl Cipher {
+    pub fn encrypt(&self, input: &[u8]) -> std::io::Result<Vec<u8>> {
+        // Each encryption gets its own 96-bit nonce
+        let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+        let ciphertext = self.0
+            .encrypt(&nonce, input)
+            .map_err(|_| Error::EncryptionFailed)?;
+
+        // We pack the nonce with the encrypted data
+        let mut result = nonce.to_vec();
+        result.extend(ciphertext);
+        Ok(result)
+    }
+
+    pub fn decrypt(&self, input: &[u8]) -> Result<Vec<u8>> {
+        // First 12 bytes are our nonce
+        let Some((nonce, payload)) = input.split_at_checked(12) else {
+            return Err(Error::DecryptionFailed);
+        };
+
+        let nonce = aes_gcm::Nonce::<U12>::from_slice(nonce);
+        self.0.decrypt(nonce, payload)
+            .map_err(|_| Error::DecryptionFailed)
+    }
+}
+```
+
+Putting it all together with proper error handling, here's our complete encryption solution:
+
+```rust
+use std::sync::Arc;
+
+use aes_gcm::aead::consts::U12;
+use aes_gcm::aead::{Aead, OsRng};
+use aes_gcm::{AeadCore, KeyInit};
+
+pub enum Error {
+    InvalidKeyLength,
+    EncryptionFailed,
+    DecryptionFailed,
+}
+
+#[derive(Clone)]
+pub struct Cipher(Arc<aes_gcm::Aes256Gcm>);
+
+impl Cipher {
+    pub fn from_key(input: &[u8]) -> Result<Self, Error> {
+        aes_gcm::Aes256Gcm::new_from_slice(input)
+            .map(|inner| Self(Arc::new(inner)))
+            .map_err(|_| Error::InvalidKeyLength)
+    }
+
+    pub fn encrypt(&self, input: &[u8]) -> std::io::Result<Vec<u8>> {
+        // Each encryption gets its own 96-bit nonce
+        let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+        let ciphertext = self.0.encrypt(&nonce, input)
+            .map_err(|_| Error::EncryptionFailed)?;
+        // We pack the nonce with the encrypted data
+        let mut result = nonce.to_vec();
+        result.extend(ciphertext);
+        Ok(result)
+    }
+
+    pub fn decrypt(&self, input: &[u8]) -> Result<Vec<u8>> {
+        // First 12 bytes are our nonce
+        let Some((nonce, payload)) = input.split_at_checked(12) else {
+            return Err(Error::DecryptionFailed);
+        };
+
+        let nonce = aes_gcm::Nonce::<U12>::from_slice(nonce);
+        self.0.decrypt(nonce, payload)
+            .map_err(|_| Error::DecryptionFailed)
+    }
+}
+```
+
+This encryption layer might seem simple, but it's intentionally so. It provides strong security guarantees while remaining easy to use and understand. When building complex systems, I've learned that simple, well-understood solutions often outperform clever but complicated ones.
