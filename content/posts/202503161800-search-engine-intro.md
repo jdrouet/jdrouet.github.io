@@ -85,11 +85,11 @@ Throughout this series, we'll explore every aspect of building a search engine. 
 Next up, we'll dive into implementing the storage layer, where we'll face our first cross-platform challenges and lay the groundwork for our search engine. We'll explore different storage strategies for browsers and native applications, and begin adding our cryptographic spice to the mix.
 
 **Series Outline:**
-- Part 1: Introduction (this article)
-- Part 2: Storage Layer Implementation
-- Part 3: Index Design and Management
-- Part 4: Search Implementation
-- Part 5: Performance
-- Part 6: Synchronization
+- Part 0: Introduction (this article)
+- Part 1: Storage Layer Implementation
+- Part 2: Index Design and Management
+- Part 3: Search Implementation
+- Part 4: Performance
+- Part 5: Synchronization
 
 Stay tuned for the next article in this series, where we'll get our hands dirty with actual implementation. Whether you're a seasoned Rust developer or just getting started, this journey promises to be both educational and entertaining.
