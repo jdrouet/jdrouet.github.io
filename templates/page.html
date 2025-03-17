@@ -47,5 +47,8 @@
   <div class="entry">
     {{ page.content | safe }}
   </div>
+  <div class="page-footer">
+      {{ macros::get_edit_url(page=page) }}
+  </div>
 </article>
 {% endblock %}
