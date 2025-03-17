@@ -1,5 +1,5 @@
 +++
-title = "Search engine storage layer"
+title = "Building a search engine from scratch, in Rust: part 1"
 description = "Or how to write on disk efficiently in the browser or any other device."
 date = 2025-03-17
 
@@ -120,7 +120,7 @@ let access = JsFuture::from(promise)
     .unwrap();
 ```
 
-This is how simple the [File System API](./https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) can be accessed.
+This is how simple the [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) can be accessed.
 
 This `FileSystemSyncAccessHandle` provides the capability to read and write from/at any point in the file. Starting from this, it's now possible to implement [`AsyncRead`](https://docs.rs/futures-io/0.3.31/futures_io/trait.AsyncRead.html), [`AsyncSeek`](https://docs.rs/futures-io/0.3.31/futures_io/trait.AsyncSeek.html) and [`AsyncWrite`](https://docs.rs/futures-io/0.3.31/futures_io/trait.AsyncWrite.html) which gives all the capabilities to implement the storage layer.
 
@@ -172,7 +172,7 @@ impl Cipher {
 }
 ```
 
-The interesting part comes with encryption and decryption. AES-GCM requires a unique `nonce` (number used once) for each message. Instead of asking users to manage nonces themselves - which would be error-prone - I decided to generate a new one for each encryption and prefix it to the encrypted data. This way, decryption becomes straightforward as the nonce is right there in the data:
+The interesting part comes with encryption and decryption. AES-GCM requires a unique `nonce` (number used once) for each message. Instead of asking users to manage nonces themselves, which would be error-prone, I decided to generate a new one for each encryption and prefix it to the encrypted data. This way, decryption becomes straightforward as the nonce is right there in the data:
 
 ```rust
 impl Cipher {
@@ -252,3 +252,173 @@ impl Cipher {
 ```
 
 This encryption layer might seem simple, but it's intentionally so. It provides strong security guarantees while remaining easy to use and understand. When building complex systems, I've learned that simple, well-understood solutions often outperform clever but complicated ones.
+
+## Wrapping Things Up
+
+Now that we can write on the filesystem and encrypt the data, let's write a piece of code that plug them both together. But to do so, we need to define what will be written or what hierarchy it will have.
+
+### The File Trait
+
+Let's stay open minded here, considering this is the early stage of the implementation. We need to consider that we need to store encrypted files, but maybe some clear files as well, for things what wouldn't be at risk.
+
+If we start with a simple item, let's define what a file should look like.
+
+```rust
+trait File {
+    fn write(&self, payload: &[u8]) -> impl Future<Output = std::io::Result<()>>;
+    fn read(&self) -> impl Future<Output = std::io::Result<Vec<u8>>>;
+    fn delete(self) -> impl Future<Output = std::io::Result<()>>;
+}
+```
+
+Where, when using an unencrypted file, we get the following
+
+```rust
+struct ClearFile {
+    path: std::path::PathBuf,
+}
+
+impl File for ClearFile {
+    async fn write(&self, payload: &[u8]) -> std::io::Result<()> {
+        fs::write(&self.path, payload).await
+    }
+
+    async fn read(&self) -> std::io::Result<Vec<u8>> {
+        fs::read(&self.path).await
+    }
+
+    async fn delete(self) -> std::io::Result<()> {
+        fs::delete(&self.path).await
+    }
+}
+```
+
+And the encrypted file is slightly more complicated
+
+```rust
+struct EncryptedFile {
+    path: std::path::PathBuf,
+    cipher: Cipher,
+}
+
+impl File for ClearFile {
+    async fn write(&self, payload: &[u8]) -> std::io::Result<()> {
+        let payload = self.cipher.encrypt(payload)
+            .map_err(std::io::Error::other)?;
+        fs::write(&self.path, &payload).await
+    }
+
+    async fn read(&self) -> std::io::Result<Vec<u8>> {
+        let content = fs::read(&self.path).await?;
+        self.cipher.decrypt(&content)
+            .map_err(std::io::Error::other)
+    }
+
+    async fn delete(self) -> std::io::Result<()> {
+        fs::delete(&self.path).await
+    }
+}
+```
+
+It's now event possible to extend the `File` trait to make it more practical and add serialization support.
+
+```rust
+trait File {
+    // keep the other trait functions here
+
+    // Serialize and write a value to the file
+    async fn serialize<V: serde::Serialize>(&self, value: &V) -> std::io::Result<()> {
+        let payload = serde_cbor::to_vec(value).map_err(|err| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, err)
+        })?;
+        self.write(&payload).await
+    }
+
+    /// Read and deserialize a value from the file
+    async fn deserialize<V: serde::de::DeserializeOwned>(&self) -> std::io::Result<V> {
+        let content = self.read().await?;
+        serde_cbor::from_slice(&content).map_err(|err| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, err)
+        })
+    }
+}
+```
+
+You can see in the code above that I'm using [`serde_cbor`](https://crates.io/crates/serde_cbor): this is for simplicity and for performance, you can keep whichever you prefer.
+
+### Directory Management
+
+Now that we have file operations, let's write something at the directory level that provides us ways to create instances of `ClearFile` or `EncryptedFile`.
+
+```rust
+struct Directory {
+    cipher: Cipher,
+    path: std::path::PathBuf,
+}
+
+impl Directory {
+    /// creates a new instance of a ClearFile, without creating it on the filesystem
+    fn clear_file(&self, relative: impl AsRef<Path>) -> ClearFile {
+        ClearFile {
+            path: self.path.join(relative),
+        }
+    }
+
+    /// creates a new instance of a EncryptedFile, without creating it on the filesystem
+    fn encrypted_file(&self, relative: impl AsRef<Path>) -> EncryptedFile {
+        EncryptedFile {
+            path: self.path.join(relative),
+            cipher: self.cipher.clone(),
+        }
+    }
+}
+```
+
+And if we add some extra functions to do basics operations on the directory, like listing files, creating the directory or deleting the directory and its content
+
+```rust
+impl Directory {
+    /// creates the directory if not exists
+    async fn create(&self) -> std::io::Result<()> {
+        fs::create_dir_all(&self.path).await
+    }
+
+    /// list all the files in the current directory
+    async fn files(&self) -> std::io::Result<Vec<PathBuf>> {
+        use futures_lite::StreamExt;
+
+        let mut result = Vec::new();
+        if let Ok(mut res) = fs::read_dir(&self.path).await {
+            while let Ok(Some(item)) = res.try_next().await {
+                let filepath = item.path();
+                if filepath.is_file() {
+                    result.push(filepath);
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
+    /// removes the current directory and all its content
+    async fn delete(&self) -> std::io::Result<()> {
+        fs::remove_dir_all(&self.path).await
+    }
+}
+```
+
+At this point, we have everything we need to interact with the filesystem, read and write files, drop files and handle the working directory of the search engine.
+
+## Conclusion
+
+In this first part of this series on building a search engine, we've laid a solid foundation by addressing one of the most fundamental challenges: cross-platform storage with encryption support. We've successfully created:
+
+- A unified storage interface that works across desktop, mobile, and browser platforms
+- An efficient encryption layer using AES-GCM that provides both security and authenticity
+- A clean API that abstracts away the complexities of different filesystems and encryption
+
+The resulting implementation is not just functional, but also maintainable and extensible. By choosing the [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) for browser storage and implementing a straightforward encryption layer, we've avoided unnecessary complexity while maintaining strong security guarantees.
+
+This storage layer will serve as the backbone for our search engine, allowing us to reliably store and retrieve indexed data across all platforms. In the next article, we'll build upon this foundation to start implementing the core indexing functionality of our search engine.
+
+Stay tuned for the next part where we'll dive into the exciting world of search algorithms and index structures!

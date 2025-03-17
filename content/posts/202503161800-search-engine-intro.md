@@ -1,5 +1,5 @@
 +++
-title = "Building a search engine from scratch, in Rust"
+title = "Building a search engine from scratch, in Rust: introduction"
 description = "Or how to build a secure, blazingly fast search engine that works everywhere, from your browser to your phone, without compromising on features or performance."
 date = 2025-03-16
 
