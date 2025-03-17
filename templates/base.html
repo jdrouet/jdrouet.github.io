@@ -5,12 +5,7 @@
   
 <head>
   {% include "partials/head.html" -%}
-  {%- block seo -%}
-    {%- if config.extra.title_separator -%}
-      {%- set title_separator = " " ~ config.extra.title_separator ~ " " -%}
-    {%- else -%}
-      {%- set title_separator = " | " -%}
-    {%- endif -%}
+  {%- block seo %}
   {%- endblock seo %}
 </head>
 

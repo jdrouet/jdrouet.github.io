@@ -3,16 +3,6 @@
 {%- block seo -%}
   {{- super() }}
 
-  {%- set title_addition = "" %}
-  {%- if page.title and config.title %}
-    {%- set title = page.title %}
-    {%- set title_addition = title_separator ~ config.title %}
-  {%- elif page.title %}
-    {%- set title = page.title %}
-  {%- else %}
-    {%- set title = config.title %}
-  {%- endif %}
-
   {%- if page.relative_path is starting_with("posts/") %}
     {%- set description = page.content | spaceless | striptags | truncate(length=200) %}
     {%- set type = "article" %}
@@ -25,7 +15,7 @@
     {%- set type = "website" %}
   {%- endif %}
 
-  {{- macros::seo(title=title, title_addition=title_addition, description=description, type=type, is_page=true) }}
+  {{- macros::seo(title=config.title, title_addition=page.title, description=description, type=type, is_page=true) }}
 {% endblock seo %}
 
 {%- block content %}

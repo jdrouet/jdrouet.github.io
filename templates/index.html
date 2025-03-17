@@ -3,21 +3,7 @@
 {%- block seo -%}
   {{- super() }}
 
-  {%- if config.title %}
-    {%- set title = config.title %}
-  {%- else %}
-    {%- set title = "" %}
-  {%- endif %}
-
-  {%- if config.description and title %}
-    {%- set title_addition = title_separator ~ config.description %}
-  {%- elif config.description %}
-    {%- set title_addition = config.description %}
-  {%- else %}
-    {%- set title_addition = "" %}
-  {%- endif %}
-
-  {{- macros::seo(title=title, description=config.description, is_home=true) }}
+  {{- macros::seo(title=config.title, description=config.description, is_home=true) }}
 {%- endblock seo %}
 
 {%- block content %}

@@ -5,13 +5,7 @@
   {%- set title = "Tags" %}
   {%- set description = "List of tags" %}
 
-  {%- if config.title %}
-    {%- set title_addition = title_separator ~ config.title %}
-  {%- else %}
-    {%- set title_addition = "" %}
-  {%- endif %}
-
-  {{- macros::seo(title=title, title_addition=title_addition, description=description, is_page=true) }}
+  {{- macros::seo(title=config.title, title_addition="Tags", description=description, is_page=true) }}
 {%- endblock seo %}
 
 {%- block content %}

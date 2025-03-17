@@ -34,8 +34,6 @@ render_emoji = true
 bottom_footnotes = true
 
 [extra]
-title_separator = " > " # set as |, -, _, etc
-
 # The path to the logo of the site
 logo = "images/logo.png"
 
