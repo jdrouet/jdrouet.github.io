@@ -1,6 +1,10 @@
 <article class="page">
   <h2>
+      {%- if page.extra.emoji %}
+      <a href="{{ page.permalink | safe }}">{{ page.extra.emoji }} {{ page.title }}</a>
+      {%- else %}
       <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
+      {%- endif %}
   </h2>
   <div class="page-info">
     <div class="entry">

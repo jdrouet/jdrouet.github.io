@@ -21,12 +21,12 @@
 {%- block content %}
 <article class="page">
   <div class="header-container">
+    {%- if page.extra.emoji %}
+    <h2>{{ page.extra.emoji }} {{ page.title }}</h2>
+    {%- else %}
     <h2>{{ page.title }}</h2>
-    {%- if config.extra.edit_page %}
-    <div class="improve hide-on-mobiles">
-      {{ macros::get_edit_url(page=page) }}
-    </div>
     {%- endif %}
+    </h2>
   </div>
   {%- if not page.extra.no_page_info %}
   <div class="page-info">
