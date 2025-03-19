@@ -12,7 +12,7 @@
 <div class="pages">
   <h2>[ {{ term.name }} ]</h2>
   {% for page in term.pages %}
-    {{ macros::page_in_list(page=page) }}
+    {% include "partials/post-short.html" -%}
   {%- endfor %}
 </div>
 {% endblock %}

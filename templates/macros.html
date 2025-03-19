@@ -1,29 +1,3 @@
-{%- macro page_in_list(page) -%}
-<article class="page">
-  <h2>
-      <a href="{{ page.permalink | safe }}">{{ page.title }}</a>
-  </h2>
-  <div class="page-info">
-    <div class="entry">
-        {%- if page.description %}
-        {{ page.description | safe }}
-        {%- else %}
-        {{ page.content | spaceless | striptags | truncate(length=200) }}
-        {%- endif %}
-    </div>
-  </div>
-  <time class="smaller" datetime="{{ page.date | date(format="%Y-%m-%dT%H:%M:%S%:z") }}">
-    {{ macros::page_timestamp(page=page) }}
-  </time>
-
-  <div class="page-footer">
-    {%- if page.description %}
-    <a href="{{ page.permalink | safe }}" class="read-more">Read More</a>
-    {%- endif %}
-  </div>
-</article>
-{% endmacro page_in_list %}
-
 {% macro get_edit_url(page) %}
 {%- set url = ["https://github.com", config.extra.github.username, config.extra.github.repo, "blob/main/content" , page.relative_path] | join(sep="/" ) %}
 <a href="{{ url ~ "?plain=1" | safe }}" target="_blank" title="Help improve page {{ page.permalink | safe }}">Suggest improvements</a>
