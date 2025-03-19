@@ -3,6 +3,9 @@ title = "My thoughts on gitmoji"
 description = "Just use conventional commits, keep things simple."
 date = 2023-11-03
 
+[extra]
+emoji = "🙂"
+
 [taxonomies]
 tags = ["git", "good practices"]
 +++

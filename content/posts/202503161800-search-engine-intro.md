@@ -3,6 +3,8 @@ title = "Building a search engine from scratch, in Rust"
 description = "Or how to build a secure, blazingly fast search engine that works everywhere, from your browser to your phone, without compromising on features or performance."
 date = 2025-03-16
 
+emoji = "🦀"
+
 [taxonomies]
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "engineering", "performance"]
 +++
