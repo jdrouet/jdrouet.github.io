@@ -167,3 +167,112 @@ impl Document {
 ```
 
 This kind of API provides the flexibility to build any kind of attribute without having to think too much about the errors and then handle the validation when it gets inserted. The schema being fixed, this kind of errors should be covered by the users tests, by doing so, I decided to prioritise usability.
+
+## Destructuring The Documents
+
+Now that we know how the documents will be structured, it's time to dive in the serious stuff: the indexes.
+
+The indexes will contain the information we need to find a document based on the query parameters. We'll try to keep the content of the index fairly small when serialized to maximise the content of indexed data.
+
+So basically, we'll do a link between the data and the document identifier: from a given term (boolean, integer, tag or text), what document contains that term, and how many times. A basic data structure would look like this.
+
+```rust
+type Index = Map<Term, Map<DocumentIdentifier, Count>>;
+```
+
+And this would be reproduced for every index, and for every term. When you think about the `DocumentIdentifier`, which would be a `String`, each term would have a cost of `size_of(DocumentIdentifier)` which is **at least** equal to the size of the string (plus some bytes depending on if we use `String` or `Box<str>`). This doesn't scale for big documents containing many terms and big identifiers, we need to use a different approach.
+
+### The Collection File
+
+If we introduce, for each shard, a `Collection` file that will contain a list of all the document identifiers and a `u32` to identify them, then in each index, we can use that `u32` to identify the document.
+
+```rust
+type EntryIndex = u32;
+/// the collection file in each shard
+type Collection = Map<EntryIndex, DocumentIdentifier>;
+/// for each index type
+type Index = Map<Term, Map<EntryIndex, Count>>;
+```
+
+This should reduce the cost significantly.
+
+Now, in order to shard the collections and indexes, we need to store the attribute used for sharding close. If we use the index to find the sharding value of every document, considering the structure of the index, doing so will not be performant enough.
+
+Persisting that attribute in the collection should make it easier to access.
+
+```rust
+type EntryIndex = u32;
+type ShardingValue = u64;
+
+struct Collection {
+    entries: HashMap<EntryIndex, DocumentIdentifier>,
+    sharding: BTreeMap<ShardingValue, HashSet<EntryIndex>>,
+}
+```
+
+That way, when one of our indexes reaches a critical size, we can just split in half the shard by taking all the entries based on the sharding `BTreeMap`. The `BTreeMap`, being sorted by design, provides the perfect API for that.
+
+The next problem we'll have to tackle on that tructure: when deleting a document from the index, how to efficiently go from the `DocumentIdentifier` to the `EntryIndex`? For that, we need to introduce a reverse map as follow.
+
+```rust
+type EntryIndex = u32;
+type ShardingValue = u64;
+
+struct Collection {
+    entries_by_index: HashMap<EntryIndex, DocumentIdentifier>,
+    entries_by_name: HashMap<DocumentIdentifier, EntryIndex>,
+    sharding: BTreeMap<ShardingValue, HashSet<EntryIndex>>,
+}
+```
+
+This improves the performance for getting an entry by name, but duplicates all the document identifiers on disk. We can do better by doing that duplication when serializing or deserializing our collection.
+
+```rust
+type EntryIndex = u32;
+type ShardingValue = u64;
+type DocumentIdentifier = Arc<str>;
+
+/// Representation on disk of an entry
+struct Entry {
+    index: EntryIndex,
+    name: DocumentIdentifier,
+    shard: ShardingValue,
+}
+
+/// Representation on disk of a collection
+struct PersistedCollection {
+    entries: Vec<Entry>
+}
+
+/// Collection used in memory to have performant access to the entries
+struct Collection {
+    entries_by_index: HashMap<EntryIndex, DocumentIdentifier>,
+    entries_by_name: HashMap<DocumentIdentifier, EntryIndex>,
+    sharding: BTreeMap<ShardingValue, HashSet<EntryIndex>>,
+}
+
+/// Let's build the collection from the persisted state
+impl From<PersistedCollection> for Collection {
+    fn from(value: PersistedCollection) -> Collection {
+        let mut entries_by_index = HashMap::with_capacity(value.entries.len());
+        let mut entries_by_name = HashMap::with_capacity(value.entries.len());
+        let mut sharding = BTreeMap::default();
+        for entry in value.entries {
+            entries_by_index.insert(entry.index, entry.name.clone());
+            entries_by_name.insert(entry.name.clone(), entry.index);
+            sharding.entry(entry.shard).or_default().insert(entry.index);
+        }
+        Collection {
+            entries_by_index,
+            entries_by_name,
+            sharding,
+        }
+    }
+}
+```
+
+This new update introduce multiple changes.
+
+First, notice the use of [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.html) instead of `String`. We need to have multiple reference to the same string in memory. If we use `String`, we'll pay several time the cost of that string length. When using `Arc<str>`, we only pay the price of the string length once and just the price of the pointer each time we clone it.
+
+> One could ask, considering the advantage of `Arc<str>`, why not writing that directly to disk or use it in the other indexes. Well, it doesn't work when serialized. [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.html) contains a pointer in memory of where the string is. When serialize/deserialize, this memory address changes, so the serializer just replaces the pointer with its actual value, which means duplication of data.
