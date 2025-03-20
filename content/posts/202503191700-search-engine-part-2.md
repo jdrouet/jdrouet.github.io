@@ -297,3 +297,162 @@ struct Collection {
     // ...other fields
 }
 ```
+
+At this point, we have everything ween need to build our collection.
+
+### Boolean Index
+
+Now let's start with a simple index, the boolean index. This will only have a simple use cases: fetching the entries where an attribute is `true` or `false`.
+
+So if we follow the structure we defined earlier, we'd end up with the following tructure.
+
+```rust
+type ValueIndex = u8;
+
+struct BooleanIndex {
+    content: HashMap<bool, HashMap<AttributeIndex, HashMap<EntryIndex, HashSet<ValueIndex>>>>,
+}
+```
+
+Where `ValueIndex` is the index of that term, for an attribute, for that entry.
+
+That way, inserting an value can be done this way.
+
+```rust
+impl BooleanIndex {
+    fn insert(
+        &mut self,
+        entry_index: EntryIndex,
+        attribute_index: AttributeIndex,
+        value_index: ValueIndex,
+        term: bool,
+    ) -> bool {
+        let term_postings = self.content.entry(term).or_default();
+        let attribute_postings = term_postings.entry(attribute_index).or_default();
+        let entry_postings = attribute_postings.entry(entry_index).or_default();
+        entry_postings.insert(value_index)
+    }
+}
+```
+
+For deletion, we get the following implementation
+
+```rust
+impl BooleanIndex {
+    fn delete(&mut self, entry_index: EntryIndex) -> bool {
+        let mut changed = false;
+        for (term, term_postings) in self.content.iter_mut() {
+            for (attribute, attribute_postings) in term_postings.iter_mut() {
+                changed |= attribute_postings.remove(&entry_index).is_some();
+            }
+        }
+        changed
+    }
+}
+```
+
+This is fairly simple. But there is an invisible problem here: empty postings don't get removed.
+
+We could, after each removal, check that the posting is not empty, and if empty, remove it from the parent.
+
+#### Self Cleaning Postings
+
+To avoid doing that in every indexes, writing a trait would make things simpler.
+
+First, we need to provide a way for the parent container to know if the posting is empty. Considering there is no trait shared between all the map and set implementations, we should define one.
+
+```rust
+/// Trait to check if an element is empty
+trait IsEmpty {
+    fn is_empty(&self) -> bool;
+}
+
+impl<K, V> IsEmpty for HashMap<K, V> {
+    fn is_empty(&self) -> bool {
+        HashMap::is_empty(self)
+    }
+}
+```
+
+It's also possible to write a macro so that we can implement this on `HashMap`, `HashSet`, `BTreeMap` and all other maps.
+
+And now, we can define a trait to have a self cleaning container
+
+```rust
+trait WithMut<K, V> {
+    fn iter_with_mut<Cb>(&mut self, callback: Cb) -> bool
+    where
+        Cb: FnMut((&K, &mut V)) -> bool;
+}
+
+impl<K, V> WithMut<K, V> for HashMap<K, V>
+where
+    K: Clone,
+    V: IsEmpty,
+{
+    fn iter_with_mut<Cb>(&mut self, mut callback: Cb) -> bool
+    where
+        cb: FnMut((&K, &mut V)) -> bool
+    {
+        let mut keys_to_remove = Vec::new();
+        let changed = self.iter_mut().fold(false, |acc, (key, value)| {
+            let changed = callback((key, value));
+            if value.is_empty() {
+                // we gather all the keys that have to be removed
+                keys_to_remove.push(key.clone());
+            }
+            res || changed
+        });
+        // we cleanup after giving back the mutability
+        for key in keys_to_remove {
+            self.remove(&key);
+        }
+        changed
+    }
+}
+
+// similar code for HashSet, etc
+```
+
+And with that fix, the deletion code can be simplified to a way more elegant way
+
+```rust
+impl BooleanIndex {
+    fn delete(&mut self, entry_index: EntryIndex) -> bool {
+        self.content.iter_with_mut(|(_, term_postings)| {
+            term_postings.iter_with_mut(|(_, attribute_postings)| {
+                attribute_postings.remove(&entry_index).is_some()
+            })
+        })
+    }
+}
+```
+
+### Integer Index
+
+Now that we have the boolean index, writing the integer index will be quite trivial. We'll just have a small difference. When on the boolean index we only query `true` or `false` for a given attribute, on the integer index, one might want to query for a range, below, above and so on. So the terms should be stored sorted. Luckily, doing so just involves switching a `HashMap` to become a `BTreeMap`.
+
+```rust
+struct IntegerIndex {
+    content: BTreeMap<u64, HashMap<AttributeIndex, HashMap<EntryIndex, HashSet<ValueIndex>>>>,
+}
+```
+
+And that's it, we take the same code as above, and it will work.
+
+### Tag Index
+
+Let's pause a bit and clarify something: what's the difference between a tag index and a text index. Well, in this implementation, a tag index is an index where the term, the tag is a single item, that doesn't get preprocessed and that we'll search for as it is. If we insert `Alice`, then searching `alice` won't find it, it's only exact match. This is good for matching email addresses, folder names, etc.
+The text index, on the opposite, the input data gets processed, but we'll talk about it right after.
+
+Once again, we can follow a similar architecture than the two other indexes.
+
+```rust
+struct TagIndex {
+    content: HashMap<Box<str>, HashMap<AttributeIndex, HashMap<EntryIndex, HashSet<ValueIndex>>>>,
+}
+```
+
+You can notice here that, instead of using `String`, we are using `Box<str>`. This is because the size of a `String` is of 24 bytes, plus the characters, while `Box<str>` has a size of 16 bytes, plus the characters. This might not seem much, but every byte is worst keeping when you use a Nokia 3310.
+
+### Text Index
