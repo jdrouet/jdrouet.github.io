@@ -3,6 +3,9 @@ title = "Building a search engine from scratch, in Rust: part 1"
 description = "Or how to write on disk efficiently in the browser or any other device."
 date = 2025-03-17
 
+[extra]
+emoji = "🦀"
+
 [taxonomies]
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "performance"]
 +++
