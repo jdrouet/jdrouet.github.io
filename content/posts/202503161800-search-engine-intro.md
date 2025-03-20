@@ -10,7 +10,7 @@ emoji = "🦀"
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "engineering", "performance"]
 +++
 
-Have you ever wondered how search engines work under the hood? I'm not talking about vector search or anything fancy, but just the good all search engines that could really find what we would look for.
+Have you ever wondered how search engines work under the hood? I'm not talking about vector search or anything fancy, but just the good old search engines that could really find what we would look for.
 Even though we can already find some articles about how search engine work from a high level, it could be interesting to implement our own and add some constraints to make it fun (and maybe simpler).
 
 ## The Challenge
