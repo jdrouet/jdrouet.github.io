@@ -271,8 +271,29 @@ impl From<PersistedCollection> for Collection {
 }
 ```
 
-This new update introduce multiple changes.
-
-First, notice the use of [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.html) instead of `String`. We need to have multiple reference to the same string in memory. If we use `String`, we'll pay several time the cost of that string length. When using `Arc<str>`, we only pay the price of the string length once and just the price of the pointer each time we clone it.
+Notice the use of [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.html) instead of `String`. We need to have multiple reference to the same string in memory. If we use `String`, we'll pay several time the cost of that string length. When using `Arc<str>`, we only pay the price of the string length once and just the price of the pointer each time we clone it.
 
 > One could ask, considering the advantage of `Arc<str>`, why not writing that directly to disk or use it in the other indexes. Well, it doesn't work when serialized. [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.html) contains a pointer in memory of where the string is. When serialize/deserialize, this memory address changes, so the serializer just replaces the pointer with its actual value, which means duplication of data.
+
+Now, let's take a step back. In the current `Index` representation, there's no mention of attribute, but the attribute is quite similar to the document identifier: we don't know how big it could be and the size on disk is related to the size of the string. Might be worst adding it in our collection structure. And considering we'll need to access the attribute name by an `AttributeIndex` and the other way around, we need to implement a similar mechanism.
+
+```rust
+/// Let's keep a fairly low number of attributes, 256 attributes should be enough
+type AttributeIndex = u8;
+
+struct Attribute {
+    index: AttributeIndex,
+    name: Arc<str>,
+}
+
+struct PersistedCollection {
+    attributes: Vec<Attribute>,
+    entries: Vec<Entry>
+}
+
+struct Collection {
+    attributes_by_index: HashMap<AttributeIndex, Arc<str>>,
+    attributes_by_name: HashMap<Arc<str>, AttributeIndex>,
+    // ...other fields
+}
+```
