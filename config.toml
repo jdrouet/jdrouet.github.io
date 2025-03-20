@@ -69,6 +69,8 @@ social_links = [
     { platform = "feed", user_id = true },
 ]
 
+job_seeking = true
+
 # GitHub settings that are used to generate the edit page link
 [extra.github]
 username = "jdrouet"

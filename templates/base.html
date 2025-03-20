@@ -1,34 +1,41 @@
 {% import "macros.html" as macros %}
-<!DOCTYPE html>
+<!doctype html>
 {%- set lang = config.extra.language_code | default(value="en-US") -%}
 <html lang="{{ lang }}" xml:lang="{{ lang }}">
-  
-<head>
-  {% include "partials/head.html" -%}
-  {%- block seo %}
-  {%- endblock seo %}
-</head>
+    <head>
+        {% include "partials/head.html" -%} {%- block seo %} {%- endblock seo %}
+    </head>
 
-<body>
-  <header>
-    <div class="container">
-      <a id="a-title" href="/">
-        <h1>👋 {{ config.title }}</h1>
-      </a>
-      <h2>{{ config.description }}</h2>
-      {% include "partials/navigation.html" -%}
-    </div>
-  </header>
+    <body>
+        {%- if config.extra.job_seeking %}
+        <div class="job-banner">
+            <div class="container">
+                <span class="job-status-dot">●</span>
+                <span class="job-status-text">
+                    Currently looking for new opportunities -
+                    <a
+                        href="{{ config.extra.linkedin.profile_url | default(value='https://www.linkedin.com/in/' ~ config.extra.linkedin.username) }}"
+                        target="_blank"
+                        >Let's connect on LinkedIn</a
+                    >
+                    or
+                    <a href="mailto:hire@jdrouet.fr">contact me</a>
+                </span>
+            </div>
+        </div>
+        {%- endif %}
+        <header>
+            <div class="container">
+                <a id="a-title" href="/">
+                    <h1>👋 {{ config.title }}</h1>
+                </a>
+                <h2>{{ config.description }}</h2>
+            </div>
+        </header>
 
-  <div class="container">
-    <main>
-      {%- block content %}
-      {%- endblock %}
-    </main>
-  </div>
-  <footer>
-    {%- include "partials/footer.html" -%}
-  </footer>
-</body>
-
+        <div class="container">
+            <main>{%- block content %} {%- endblock %}</main>
+        </div>
+        <footer>{%- include "partials/footer.html" -%}</footer>
+    </body>
 </html>

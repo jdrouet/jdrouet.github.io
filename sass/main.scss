@@ -535,3 +535,45 @@ textarea:focus {
 .tags h2 {
   margin-top: 1.6em;
 }
+
+.job-banner {
+  background: rgba(0, 0, 0, 0.9);
+  border-bottom: 1px solid $amber;
+  padding: $md 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+
+  .container {
+    display: flex;
+    align-items: center;
+    gap: $md;
+  }
+
+  .job-status-dot {
+    color: #00ff00;
+    animation: pulse 2s infinite;
+  }
+
+  .job-status-text {
+    color: $gallery;
+  }
+
+  a {
+    color: $amber;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+// Adjust header margin when banner is present
+.job-banner + header {
+  margin-top: 0;
+}
