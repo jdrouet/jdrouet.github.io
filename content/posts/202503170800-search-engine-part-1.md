@@ -6,6 +6,9 @@ date = 2025-03-22
 [extra]
 emoji = "🦀"
 
+[extra]
+emoji = "🦀"
+
 [taxonomies]
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "performance"]
 +++
