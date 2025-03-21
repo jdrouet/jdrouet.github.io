@@ -580,3 +580,27 @@ This manifest will be stored in the working directory as `manifest.bin` and ever
 #### Transaction Mechanism
 
 This level of abstraction for the manifest allows us to add or delete shards when needed but there's an issue: we cannot block the access to the search engine each time we insert a document. We should be able to insert a set of documents while using the index and just block its access when writing the updated manifest to disk.
+
+Following a similar mechanism to a transactional database, inserting data will require initializing a transaction, which will create a temporary manifest file which will contain the names of all the original indexes and the names of the indexes that have been updated. Updating a collection or an index will create a new file on disk but non updated indexes will remain the same.
+
+This would give use this code for the shard management
+
+```rust
+struct TxFile {
+    // a shard can not have any boolean index but it can be created after an update
+    base: Option<Filename>,
+    // the filename once the transaction is committed
+    next: Option<Filename>,
+}
+struct TxShard {
+    collection: TxFile,
+    indexes: HashMap<Kind, TxFile>,
+}
+struct TxManifest {
+    shards: BTreeMap<u64, TxShard>,
+}
+```
+
+This transaction manifest would be written down to the filesystem depending on the platform: in the browser, we cannot know when the page will be closed so better write it after each operation, while on mobile, the app can do a simple operation before closing. This provides a nice way of being able to recover a transaction that has not been committed.
+
+That commit operation simply consists in, for each file of each shard, taking the `next` filename if exists or the `base` one, and write it in the `manifest.bin`. This commit operation is atomic, and then less prone to errors.
