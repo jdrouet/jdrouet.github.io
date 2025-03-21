@@ -456,3 +456,127 @@ struct TagIndex {
 You can notice here that, instead of using `String`, we are using `Box<str>`. This is because the size of a `String` is of 24 bytes, plus the characters, while `Box<str>` has a size of 16 bytes, plus the characters. This might not seem much, but every byte is worst keeping when you use a Nokia 3310.
 
 ### Text Index
+
+As I mentioned earlier, the text index is a bit more complicated than the tag index. When the tag index is made to return entries that contain a term with exact matching, the text index will provide functionalities to search inside the provided text: the tag index is for a single value like `alice` or `personal` while you give the text index complete sentences, articles, documents, etc. And on top of that, we'll want to be able to find some elements in that text even if there are some mistages in the query: `personnal` should match documents containing `this is a personal document`.
+
+So we'll have to adjust a bit the interface we used for the other indexes considering now, an input value will carry more information: an indexed attribute value will be composed of several tokens. A token will be defined by its term, it's position in the original text and the index in the list of tokens.
+
+Processing that input will consist in extracting the words from the input text, lowercase them and apply some [stemming](https://en.wikipedia.org/wiki/Stemming) before inserting all the terms in the index. The first ones are fairly simple but the stemming mechanism can be quite complicated, especially when we consider doing something that handles multiple languages.
+
+Here is a simple example of how the preprocessing process should work. I removed the complexity from the `capture_all` and `stem` function to make it simpler to read. Those functions will just be the ones provided by the [`regex` crate](https://crates.io/crates/regex) and the [`rust-stemmers` crate](https://crates.io/crates/rust-stemmers).
+
+```rust
+let input = "Hello World! Do you want tomatoes?";
+// extracting the words
+let tokens = capture_all(r"(\w{3,20})", input)
+    // lowercase them
+    .map(|(position, term)| (position, term.to_lower_case()))
+    // keep track of the token index
+    .enumerate()
+    // stemming
+    .map(|(index, (position, term))| Token {
+        index,
+        position,
+        term: stem(term),
+    })
+    .collect::<Vec<_>>();
+// should return
+// { term: "hello", index: 0, position: 0 }
+// { term: "world", index: 1, position: 6 }
+// { term: "you", index: 2, position: 16 }
+// { term: "want", index: 3, position: 20 }
+// { term: "tomato", index: 4, position: 25 }
+```
+
+And we'll require to store those positions in the index as well, considering a term could occure several time in the same attribute value.
+
+```rust
+type Position = u32;
+type TokenIndex = u16;
+
+type TermPostings = HashMap<AttributeIndex, AttributePostings>;
+type AttributePostings = HashMap<EntryIndex, EntryPostings>;
+type EntryPostings = HashMap<ValueIndex, HashSet<(TokenIndex, Position)>>;
+
+struct TextIndex {
+    content: HashMap<Box<str>, TermPostings>,
+}
+```
+
+Now, for each attribute value, we keep a `HashSet` of the `TokenIndex` and `Position`.
+
+Considering the wasm binary will only be able to handle 4GB of data, the maximum index length of a string would fit in a `u32` and considering the words have a minimum of 3 characters, using `u16` to index them should be enough. Therefore, `Position` and `TokenIndex` are respectively an alias to `u32` and `u16`.
+
+Now, if we implement the `insert` method, it gives us the following.
+
+```rust
+impl TextIndex {
+    fn insert(
+        &mut self,
+        entry_index: EntryIndex,
+        attribute_index: AttributeIndex,
+        value_index: ValueIndex,
+        term: &str,
+        token_index: TokenIndex,
+        position: Position,
+    ) -> bool {
+        let term_postings = self.content.entry(term).or_default();
+        let attribute_postings = term_postings.entry(attribute_index).or_default();
+        let entry_postings = entry_postings.entry(entry_index).or_default();
+        let value_postings = attr_postings.entry(value_index).or_default();
+        value_postings.insert((token_index, position))
+    }
+}
+```
+
+The `delete` method, on the other hand, remains the same.
+
+### Shard Definition
+
+At this point, we have everything we need to build a shard: a collection to list all the documents in the shard and an index for each type. A simple implementation of that shard would look like this.
+
+```rust
+// an abstraction to be able to map the indexes
+enum AnyIndex {
+    Boolean(BooleanIndex),
+    Integer(IntegerIndex),
+    Tag(TagIndex),
+    Text(TextIndex),
+}
+
+struct Shard {
+    collection: Collection,
+    indexes: HashMap<Kind, AnyIndex>,
+}
+```
+
+But this is a single shard representation, we might have several an need to have a representation as well.
+
+```rust
+struct Manager {
+    shards: BTreeMap<u64, Shard>,
+}
+```
+
+With this representation, the `u64` in the `BTreeMap` will represent the minimum in the range of partition handled by that shard. When initialized, the first shard key will be `0`.
+
+But the two previous representation are actually wrong: this would mean that we'll load in memory the entire search engine, which doesn't scale. Instead, the `Shard` structure will only contain the filenames of the collection and indexes, which will be loaded in memory only when needed, and written to disk when they are not needed anymore.
+
+The `Manager` structure can then be renamed to `Manifest` and will be, as well, persisting on disk, representing the state of the search engine at a given point in time.
+
+```rust
+struct Manifest {
+    shards: BTreeMap<u64, Shard>,
+}
+
+struct Shard {
+    collection: Filename,
+    indexes: HashMap<Kind, Filename>,
+}
+```
+
+This manifest will be stored in the working directory as `manifest.bin` and every file (collections and indexes) will have a random name.
+
+#### Transaction Mechanism
+
+This level of abstraction for the manifest allows us to add or delete shards when needed but there's an issue: we cannot block the access to the search engine each time we insert a document. We should be able to insert a set of documents while using the index and just block its access when writing the updated manifest to disk.
