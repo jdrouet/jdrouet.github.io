@@ -1,13 +1,51 @@
-{%- include "partials/svg-icons.html" -%}
-{%- if page.extra.pgp_key_enabled and config.extra.pgp_key %}
+{%- if config.extra.email.address %}
+<a
+    alt="Send me an email"
+    class="text-xxl"
+    href="mailto:{{ config.extra.email.address | safe }}"
+    target="_blank"
+>
+    <i class="icon icon-mail"></i>
+</a>
+{%- endif -%} {%- if config.extra.github.username %}
+<a
+    alt="My GitHub profile"
+    class="text-xxl"
+    href="https://github.com/{{ config.extra.github.username | safe }}"
+    target="_blank"
+>
+    <i class="icon icon-github"></i>
+</a>
+{%- endif -%} {%- if config.extra.linkedin.username %}
+<a
+    alt="My LinkedIn profile"
+    class="text-xxl"
+    href="https://www.linkedin.com/in/{{ config.extra.linkedin.username | safe }}"
+    target="_blank"
+>
+    <i class="icon icon-linkedin"></i>
+</a>
+{%- endif -%} {%- if config.extra.feed.path %}
+<a
+    alt="Follow my RSS feed"
+    class="text-xxl"
+    href="{{ config.extra.feed.path | safe }}"
+    target="_blank"
+>
+    <i class="icon icon-rss"></i>
+</a>
+{%- endif -%} {%- if page.extra.pgp_key_enabled and config.extra.pgp_key %}
 <p class="pgp-key">
-  <a href="{{ config.extra.pgp_key.url }}">PGP:
-    <code>{{ config.extra.pgp_key.fingerprint }}</code>
-  </a>
+    <a href="{{ config.extra.pgp_key.url }}"
+        >PGP:
+        <code>{{ config.extra.pgp_key.fingerprint }}</code>
+    </a>
 </p>
-{%- endif -%}
-{%- set section = get_section(path="posts/_index.md") -%}
-{%- set earliest_post = section.pages | last -%}
-{%- set earliest_date = earliest_post.date | date(format="%Y") -%}
-{% set current_date = now() | date(format="%Y") %}
-<span class="copyright">&copy; {{ earliest_date }}{% if earliest_date != current_date %} - {{ current_date }}{% endif %} {{ config.author }}</span>
+{%- endif -%} {%- set section = get_section(path="posts/_index.md") -%} {%- set
+earliest_post = section.pages | last -%} {%- set earliest_date =
+earliest_post.date | date(format="%Y") -%} {% set current_date = now() |
+date(format="%Y") %}
+<span class="copyright"
+    >&copy; {{ earliest_date }}{% if earliest_date != current_date %} - {{
+    current_date }}{% endif %} {{ config.author }}</span
+>

@@ -1,5 +1,5 @@
 @import "default_colors";
-@import "svg-icons";
+@import "icomoon-style";
 @import "primary-font";
 @import "sizes";
 
@@ -99,6 +99,10 @@ nav {
 
 .smaller {
   font-size: 0.95em;
+}
+
+.text-xxl {
+    font-size: 1.5em;
 }
 
 /* Main Content

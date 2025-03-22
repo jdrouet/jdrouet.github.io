@@ -3,11 +3,10 @@
     <a alt="Link to {{ item.name }}" href="{{ item.url | safe }}" class="btn">
         {{ item.name }}
     </a>
-    {%- endfor %}
-    {%- if config.extra.github.username %}
+    {%- endfor %} {%- if config.extra.github.username %}
     <a
         alt="Link to LinkedIn profile"
-        href="{{ 'https://www.linkedin.com/in/' ~ config.extra.linkedin.username | safe }}"
+        href="https://www.linkedin.com/in/{{ config.extra.linkedin.username | safe }}"
         class="btn btn-linkedin"
         target="_blank"
     >
@@ -16,11 +15,23 @@
     {%- endif %} {%- if config.extra.github.username %}
     <a
         alt="Link to GitHub profile"
-        href="{{ 'https://github.com/' ~ config.extra.github.username | safe }}"
+        href="https://github.com/{{ config.extra.github.username | safe }}"
         class="btn btn-github"
         target="_blank"
     >
-        <span class="icon icon-github-circled"></span>{{ config.extra.github.username }}</a
+        <span class="icon icon-github"></span>{{ config.extra.github.username
+        }}</a
+    >
+    {%- endif %} {%- if config.extra.mastodon.instance and
+    config.extra.mastodon.username %}
+    <a
+        alt="Link to Mastodon profile"
+        href="{{ 'https://' ~ config.extra.mastodon.instance ~ '/' ~ config.extra.mastodon.username | safe }}"
+        class="btn btn-github"
+        target="_blank"
+    >
+        <span class="icon icon-mastodon"></span>{{
+        config.extra.mastodon.username }}</a
     >
     {%- endif %}
 </nav>

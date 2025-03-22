@@ -61,24 +61,24 @@ edit_page = false
 # Use theme specific tags page based on templates/tags.html
 simplified_tags = true
 
-# Social links
-social_links = [
-    { platform = "email", user_id = "contact@jdrouet.fr" },
-    { platform = "github", user_id = "jdrouet" },
-    { platform = "linkedin", user_id = "jeremiedrouet" },
-    { platform = "feed", user_id = true },
-]
-
 job_seeking = true
 
-# GitHub settings that are used to generate the edit page link
+[extra.email]
+address = "contact@jdrouet.fr"
+
 [extra.github]
 username = "jdrouet"
 repo = "jdrouet.github.io"
 
-
 [extra.linkedin]
 username = "jeremiedrouet"
+
+[extra.mastodon]
+instance = "mamot.fr"
+username = "@jdrouet"
+
+[extra.feed]
+path = "/atom.xml"
 
 # Giscus settings
 # Please refer to https://giscus.app/ for more information
