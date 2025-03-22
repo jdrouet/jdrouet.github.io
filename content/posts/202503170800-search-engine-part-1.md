@@ -28,13 +28,13 @@ Before diving into search algorithms and indexing, we need to solve a fundamenta
 
 ## Exploring Available Solutions
 
-When I first approached this problem, I naturally looked at what the browser ecosystem offers for storage. The most obvious solution seemed to be [LocalStorage]((https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage)) - it's simple, widely supported, and easy to use. However, its limitations quickly became apparent: the storage size is restricted (usually to just a few megabytes), and it only supports string values, which would force us to serialize and deserialize our data constantly.
+When I first approached this problem, I naturally looked at what the browser ecosystem offers for storage. The most obvious solution seemed to be [LocalStorage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) - it's simple, widely supported, and easy to use. However, its limitations quickly became apparent: the storage size is restricted (usually to just a few megabytes), and it only supports string values, which would force us to serialize and deserialize our data constantly.
 
 Next, I considered [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). It's more powerful and supports larger datasets, which initially seemed promising. But working with [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) directly is notoriously complex - its API is verbose and requires handling multiple edge cases. While there are wrapper libraries that make it more palatable, they would add unnecessary bulk to our final bundle size.
 
-That's when I discovered the [File System API](./https://developer.mozilla.org/en-US/docs/Web/API/File_System_API), a relatively new addition to modern browsers. This API caught my attention because it provides something remarkable: a filesystem-like interface that feels natural and familiar. Instead of working with abstract storage concepts, we can work with files and directories in a way that's conceptually similar to how we'd handle storage on desktop or mobile platforms.
+That's when I discovered the [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API), a relatively new addition to modern browsers. This API caught my attention because it provides something remarkable: a filesystem-like interface that feels natural and familiar. Instead of working with abstract storage concepts, we can work with files and directories in a way that's conceptually similar to how we'd handle storage on desktop or mobile platforms.
 
-The [File System API](./https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) offers several compelling advantages:
+The [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) offers several compelling advantages:
 - We can work with files directly, making our code more intuitive
 - Performance is generally better than alternatives since we're closer to the system
 - The API aligns well with how we'll handle storage on other platforms
@@ -57,7 +57,7 @@ Considering the browser will be the weak point here, let's spend some time figur
 
 ### A filesystem for the Browser
 
-Addressing this head down could lead us to use the [local storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) or [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) as a virtual filesystem. But modern browsers now come with a [File System API](./https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) that provides an access to the filesystem on the device. This API doesn't provide a direct access to `/home` or any other directory, but instead, provides an isolated directory in which it's possible to do any kind of filesystem operation (expect links).
+Addressing this head down could lead us to use the [local storage](https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage) or [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API) as a virtual filesystem. But modern browsers now come with a [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) that provides an access to the filesystem on the device. This API doesn't provide a direct access to `/home` or any other directory, but instead, provides an isolated directory in which it's possible to do any kind of filesystem operation (expect links).
 
 After taking a look at the documentation, here is how it works in javascript
 
@@ -84,7 +84,7 @@ Taking a step back here: would I run a search engine, that does some heavy opera
 
 #### Implementing a simple wrapper
 
-Implementing the [File System API](./https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) wrapper in rust is quite an easy task considering [web-sys](https://crates.io/crates/web-sys) already extracts most of the javascript API to Rust.
+Implementing the [File System API](https://developer.mozilla.org/en-US/docs/Web/API/File_System_API) wrapper in rust is quite an easy task considering [web-sys](https://crates.io/crates/web-sys) already extracts most of the javascript API to Rust.
 
 Here is now how to get the root directory directly in Rust
 
