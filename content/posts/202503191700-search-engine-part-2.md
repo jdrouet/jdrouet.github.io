@@ -564,7 +564,7 @@ You can notice here that, instead of using `String`, we are using `Box<str>`. Th
 
 ### Text Index
 
-As I mentioned earlier, the text index is a bit more complicated than the tag index. When the tag index is made to return entries that contain a term with exact matching, the text index will provide functionalities to search inside the provided text: the tag index is for a single value like `alice` or `personal` while you give the text index complete sentences, articles, documents, etc. And on top of that, we'll want to be able to find some elements in that text even if there are some mistakes in the query: `personnal` should match documents containing `this is a personal document`.
+As I mentioned earlier, the text index is a bit more complicated than the tag index. When the tag index is made to return entries that contain a term with exact matching, the text index will provide functionalities to search inside the provided text: the tag index is for a single value like `alice` or `personal` while you give the text index complete sentences, articles, documents, etc. And on top of that, we'll want to be able to find some elements in that text even if there are some mistakes in the query: `personnal` should match documents containing `this is a personal document`, event with a typo.
 
 So we'll have to adjust a bit the interface we used for the other indexes considering now, an input value will carry more information: an indexed attribute value will be composed of several tokens. A token will be defined by its term, it's position in the original text and the index in the list of tokens.
 
