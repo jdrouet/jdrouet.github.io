@@ -232,7 +232,7 @@ So basically, we'll do a link between the data and the document identifier: from
 type Index = Map<Term, Map<DocumentIdentifier, Count>>;
 ```
 
-And this would be reproduced for every index, and for every term. When you think about the `DocumentIdentifier`, which would be a `String`, each term would have a cost of `size_of(DocumentIdentifier)` which is **at least** equal to the size of the string (plus some bytes depending on if we use `String` or `Box<str>`). This doesn't scale for big documents containing many terms and big identifiers, we need to use a different approach.
+And this would be reproduced for every index, and for every term. When you think about the `DocumentIdentifier`, which would be a `String`, each term would have a cost of [`size_of(DocumentIdentifier)`](https://doc.rust-lang.org/std/mem/fn.size_of.html) which is **at least** equal to the size of the string (plus some bytes depending on if we use `String` or `Box<str>`). This doesn't scale for big documents containing many terms and big identifiers, we need to use a different approach.
 
 ### The Collection File
 
