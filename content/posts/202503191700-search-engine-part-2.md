@@ -604,3 +604,124 @@ struct TxManifest {
 This transaction manifest would be written down to the filesystem depending on the platform: in the browser, we cannot know when the page will be closed so better write it after each operation, while on mobile, the app can do a simple operation before closing. This provides a nice way of being able to recover a transaction that has not been committed.
 
 That commit operation simply consists in, for each file of each shard, taking the `next` filename if exists or the `base` one, and write it in the `manifest.bin`. This commit operation is atomic, and then less prone to errors.
+
+#### Sharding, Or Not Sharding
+
+Before talking about how to shard, we should talk about when we should decide to shard.
+
+Considering I've decided to leave the limit configurable depending on the size of the files, we have to be able to determine the size of a index file, once serialized and encrypted. Considering the time needed to serialize and encrypt is CPU bound (and after some experiments), writing the encrypted file to disk in order to determine its size brings too much overhead and kills the performance.
+
+The second option I came with was to compute the size of the index each time it gets updated. It's quite time consuming, it's the bruteforce way, but compared still peanuts compared to the time needed to serialize it and encrypting it. And we'll be able to improve this performance later, there's an entire section dedicated for that.
+
+Considering the redondancy in the structure of the indexes, we can make something smart that won't require too much repeat. Let's implement a `ContentSize` that evaluates the size of the structure.
+
+```rust
+trait ContentSize {
+    fn estimate_size(&self) -> usize;
+}
+
+// for constant value sizes
+macro_rules! const_size {
+    ($name:ident) => {
+        impl ContentSize for $name {
+            fn estimate_size(&self) -> usize {
+                std::mem::size_of::<$name>()
+            }
+        }
+    }
+}
+
+// and for other types like u16, u32, u64 and bool
+const_size!(u8);
+
+// let's consider a string just for its content size
+impl<T: AsRef<str>> ContentSize for T {
+    fn estimate_size(&self) -> usize {
+        self.as_ref().len()
+    }
+}
+
+// for maps, similar
+impl<K: ContentSize, V: ContentSize> for HashMap<K, V> {
+    fn estimate_size(&self) -> usize {
+        self.iter().fold(0, |acc, (key, value)| acc + key.estimate_size() + value.estimate_size())
+    }
+}
+```
+
+With this in hand, we can implement it for all the indexes and we'll have a rough idea of the size of the file. Considering that encryption will add a bit of overhead in size, we can decide to split the index when it reaches 90% of the limit size.
+
+But now the question is: how to implement the sharding mechanism? It's quite simple and will be based on what we put in place earlier in this article.
+
+In the `Collection` struture lives a `BTreeMap` of all the entries by sharding value. A simple way to shard is just to split that `BTreeMap` at its center of gravity so that we have almost the same number of documents in both shard.
+
+Now we just have to implement a splitting function on the collection and all the indexes.
+
+```rust
+impl Collection {
+    fn split(&mut self) -> Option<Collection> {
+        // if all the entries have the same sharding value, it's not possible to split considering
+        // a sharding value can only be in one shard.
+        if self.sharding < 2 {
+            return None;
+        }
+
+        let total_count = self.entries_by_name.len();
+        let half_count = total_count / 2;
+
+        let mut new_collection = Collection::default();
+
+        while new_collection.entries_by_name.len() < half_count && self.sharding.len() > 1 {
+            // if this happens, it means we moved everything from the old shard,
+            // which shouldn't happen considering that we check the number of shards
+            let Some((shard_value, entries)) = self.sharding.pop_last() {
+                return new_collection;
+            }
+            // moving from the old collection to the new collection one by one
+            for entry_index in entries {
+                if let Some(name) = self.entries_by_index.remove(&entry_index) {
+                    self.entries_by_name.remove(&name);
+                    new_collection.entries_by_index.insert(entry_index, name.clone());
+                    new_collection.entries_by_name.insert(name, entry_index);
+                }
+            }
+            new_collection.sharding.insert(shard_value, entries);
+        }
+
+        new_collection
+    }
+}
+```
+
+This will give use a new collection if it was possible to split it. If it's possible, we can now split all the indexes.
+
+```rust
+// similar for each index
+impl BooleanIndex {
+    // we just create a new index an move every item from the old entries to the new index
+    fn split(&mut self, entries: &HashSet<EntryIndex>) -> BooleanIndex {
+        let mut next = BooleanIndex::default();
+        self.content.iter_with_mut(|(term, term_postings)| {
+            term_postings.iter_with_mut(|(attribute, attribute_postings)| {
+                // fetch the intersection
+                let intersection = entries.iter().filter(|entry_index| attribute_postings.contains_key(entry_index)).collect();
+                if !intersection.is_empty() {
+                    // only create the postings if there is an intersection
+                    let next_term_postings = next.content.entry(term.clone()).or_default();
+                    let next_attribute_postings = next_term_postings.entry(attribute.clone()).or_default();
+                    for entry_index in intersection.iter() {
+                        // remove from the old one and insert in the new one
+                        if let Some(entry_posting) = attribute_postings.remove(entry_index) {
+                            next_attribute_postings.insert(entry_index, entry_posting);
+                        }
+                    }
+                }
+                !intersection.is_empty()
+            })
+        });
+        next
+    }
+}
+```
+
+After this creation of a new shard, we can inject it in the transaction manifest, with the sharding key being the minimum of all the sharding keys, which can simply be accessed using the [`first_key_value` function of the `BTreeMap`](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.first_key_value). And at the next commit, it will be possible to search in it.
