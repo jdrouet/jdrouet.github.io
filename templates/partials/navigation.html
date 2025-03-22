@@ -1,10 +1,12 @@
 <nav id="navbar">
     {%- for item in config.extra.menu %}
-    <a href="{{ item.url | safe }}" class="btn">
+    <a alt="Link to {{ item.name }}" href="{{ item.url | safe }}" class="btn">
         {{ item.name }}
     </a>
-    {%- endfor %} {%- if config.extra.github.username %}
+    {%- endfor %}
+    {%- if config.extra.github.username %}
     <a
+        alt="Link to LinkedIn profile"
         href="{{ 'https://www.linkedin.com/in/' ~ config.extra.linkedin.username | safe }}"
         class="btn btn-linkedin"
         target="_blank"
@@ -13,6 +15,7 @@
     >
     {%- endif %} {%- if config.extra.github.username %}
     <a
+        alt="Link to GitHub profile"
         href="{{ 'https://github.com/' ~ config.extra.github.username | safe }}"
         class="btn btn-github"
         target="_blank"
