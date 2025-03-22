@@ -595,7 +595,7 @@ let tokens = capture_all(r"(\w{3,20})", input)
 // { term: "tomato", index: 4, position: 25 }
 ```
 
-And we'll require to store those positions in the index as well, considering a term could occure several time in the same attribute value.
+And we'll require to store those positions in the index as well, considering a term could occur several time in the same attribute value.
 
 ```rust
 type Position = u32;
