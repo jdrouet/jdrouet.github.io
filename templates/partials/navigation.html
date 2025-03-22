@@ -7,7 +7,7 @@
     <a
         alt="Link to LinkedIn profile"
         href="https://www.linkedin.com/in/{{ config.extra.linkedin.username | safe }}"
-        class="btn btn-linkedin"
+        class="btn"
         target="_blank"
     >
         <span class="icon icon-linkedin"></span>About me</a
@@ -16,7 +16,7 @@
     <a
         alt="Link to GitHub profile"
         href="https://github.com/{{ config.extra.github.username | safe }}"
-        class="btn btn-github"
+        class="btn"
         target="_blank"
     >
         <span class="icon icon-github"></span>{{ config.extra.github.username
@@ -27,7 +27,7 @@
     <a
         alt="Link to Mastodon profile"
         href="{{ 'https://' ~ config.extra.mastodon.instance ~ '/' ~ config.extra.mastodon.username | safe }}"
-        class="btn btn-github"
+        class="btn"
         target="_blank"
     >
         <span class="icon icon-mastodon"></span>{{

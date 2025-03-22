@@ -25,6 +25,15 @@
 >
     <i class="icon icon-linkedin"></i>
 </a>
+{%- endif -%} {%- if config.extra.mastodon.instance %}
+<a
+    alt="Follow me on Mamot"
+    class="text-xxl"
+    href="{{ 'https://' ~ config.extra.mastodon.instance ~ '/' ~ config.extra.mastodon.username | safe }}"
+    target="_blank"
+>
+    <i class="icon icon-mastodon"></i>
+</a>
 {%- endif -%} {%- if config.extra.feed.path %}
 <a
     alt="Follow my RSS feed"
