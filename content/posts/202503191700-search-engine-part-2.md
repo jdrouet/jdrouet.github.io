@@ -3,6 +3,9 @@ title = "Building a search engine from scratch, in Rust: part 2"
 description = "Or how we'll structure go from a set of documents to a set of structured indexes."
 date = 2025-03-19
 
+[extra]
+emoji = "🦀"
+
 [taxonomies]
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "performance"]
 +++
@@ -71,15 +74,24 @@ And now, building the schema should fail if the sharding attribute is not define
 It gives us the following structure for the schema.
 
 ```rust
+/// Represents the possible data types that can be indexed
 enum Kind {
+    /// Simple true/false values
     Boolean,
+    /// Unsigned 64-bit integers, used for numeric queries and sharding
     Integer,
+    /// Single tokens that require exact matching (e.g. email addresses, IDs)
     Tag,
+    /// Full-text content that will be tokenized and stemmed
     Text,
 }
 
+/// Defines the structure and rules for indexable documents
 struct Schema {
+    /// Maps attribute names to their types
     attributes: HashMap<String, Kind>,
+    /// The attribute used to determine document sharding
+    /// Must be of Kind::Integer
     shard_by: String,
 }
 
@@ -139,15 +151,24 @@ Instead of that, the search-engine will validate the document before inserting i
 This gives use a relatively simple API for the `Document` as well.
 
 ```rust
+/// A value that can be indexed
 enum Value {
+    /// Boolean values are stored as-is
     Boolean(bool),
+    /// Integer values are used for range queries and sharding
     Integer(u64),
+    /// Tags are stored without any processing
     Tag(String),
+    /// Text values will be tokenized and processed
     Text(String),
 }
 
+/// Represents a document to be indexed
 struct Document {
+    /// Unique identifier for the document
     id: String,
+    /// Maps attribute names to their values
+    /// A single attribute can have multiple values
     attributes: HashMap<String, Vec<Value>>,
 }
 
@@ -167,6 +188,37 @@ impl Document {
 ```
 
 This kind of API provides the flexibility to build any kind of attribute without having to think too much about the errors and then handle the validation when it gets inserted. The schema being fixed, this kind of errors should be covered by the users tests, by doing so, I decided to prioritise usability.
+
+Now that we have defined our schema and document structure, here's how all the pieces fit together:
+
+```ascii
++-------------+     +----------------+
+| Document    |     | Collection     |
++-------------+     +----------------+
+| id: String  |     | entries_by_idx |
+| attributes  +---->| entries_by_name|
++-------------+     | sharding       |
+                    +----------------+
+                           |
+                           v
+        +----------------------------------+
+        |           Indexes                |
+        |----------------------------------|
+        |                                  |
+    +--------+   +---------+   +--------+  |
+    |Boolean |   |Integer  |   |Text    |  |
+    |Index   |   |Index    |   |Index   |  |
+    +--------+   +---------+   +--------+  |
+        |            |            |        |
+        +------------+------------+--------+
+```
+
+Key takeaways:
+- Documents have a fixed schema with typed attributes
+- Supported types: Boolean, Integer, Tag, Text
+- Documents can have multiple values for an attribute
+- Sharding is based on an integer attribute
+- Schema validation happens at document insertion
 
 ## Destructuring The Documents
 
@@ -212,7 +264,7 @@ struct Collection {
 
 That way, when one of our indexes reaches a critical size, we can just split in half the shard by taking all the entries based on the sharding `BTreeMap`. The `BTreeMap`, being sorted by design, provides the perfect API for that.
 
-The next problem we'll have to tackle on that tructure: when deleting a document from the index, how to efficiently go from the `DocumentIdentifier` to the `EntryIndex`? For that, we need to introduce a reverse map as follow.
+The next problem we'll have to tackle on that structure: when deleting a document from the index, how to efficiently go from the `DocumentIdentifier` to the `EntryIndex`? For that, we need to introduce a reverse map as follow.
 
 ```rust
 type EntryIndex = u32;
@@ -243,14 +295,29 @@ struct Entry {
 struct PersistedCollection {
     entries: Vec<Entry>
 }
+```
 
-/// Collection used in memory to have performant access to the entries
+This represents how we'll store our collection on disk. Each entry maintains its numeric index, document identifier, and sharding value in a simple vector structure.
+
+```rust
+/// Manages document identifiers and sharding information
 struct Collection {
+    /// Maps numeric indexes to document identifiers
+    /// Uses u32 to optimize memory usage while supporting large datasets
     entries_by_index: HashMap<EntryIndex, DocumentIdentifier>,
+    /// Reverse mapping for quick document lookups
     entries_by_name: HashMap<DocumentIdentifier, EntryIndex>,
+    /// Maps sharding values to sets of document indexes
+    /// Using BTreeMap for ordered access during shard splitting
     sharding: BTreeMap<ShardingValue, HashSet<EntryIndex>>,
 }
+```
 
+In memory, we maintain bidirectional mappings between indexes and document identifiers for efficient lookups in both directions. The sharding map uses a `BTreeMap` to maintain order, which will be crucial for our sharding operations.
+
+And here is the function to build a `Collection` based on its persisted state on disk.
+
+```rust
 /// Let's build the collection from the persisted state
 impl From<PersistedCollection> for Collection {
     fn from(value: PersistedCollection) -> Collection {
@@ -300,6 +367,37 @@ struct Collection {
 
 At this point, we have everything ween need to build our collection.
 
+Key points about collections:
+
+- Uses numeric indexes to reduce storage overhead
+- Maintains bidirectional mappings for efficient lookups
+- Stores sharding information for easy partitioning
+- Uses `Arc<str>` for memory-efficient string handling
+- Attributes are also indexed for space optimization
+
+Before we dive into each index type, here's how the hierarchical structure works for our indexes:
+
+```ascii
+Term Index
++---------+
+|'rust'   |--+
+|'fast'   |  |
+|'search' |  |
++---------+  |
+             v
+        Attribute Index
+        +-------------+
+        |'content'    |--+
+        |'title'      |  |
+        +-------------+  |
+                         v
+                    Document Index
+                    +------------+
+                    |Doc1: [0,5] |
+                    |Doc2: [3]   |
+                    +------------+
+```
+
 ### Boolean Index
 
 Now let's start with a simple index, the boolean index. This will only have a simple use cases: fetching the entries where an attribute is `true` or `false`.
@@ -309,7 +407,10 @@ So if we follow the structure we defined earlier, we'd end up with the following
 ```rust
 type ValueIndex = u8;
 
+/// stores boolean values for quick true/false queries
 struct BooleanIndex {
+    /// maps boolean values to their postings
+    /// structure: bool -> attribute -> document -> value positions
     content: HashMap<bool, HashMap<AttributeIndex, HashMap<EntryIndex, HashSet<ValueIndex>>>>,
 }
 ```
@@ -401,7 +502,7 @@ where
                 // we gather all the keys that have to be removed
                 keys_to_remove.push(key.clone());
             }
-            res || changed
+            acc || changed
         });
         // we cleanup after giving back the mutability
         for key in keys_to_remove {
@@ -433,7 +534,10 @@ impl BooleanIndex {
 Now that we have the boolean index, writing the integer index will be quite trivial. We'll just have a small difference. When on the boolean index we only query `true` or `false` for a given attribute, on the integer index, one might want to query for a range, below, above and so on. So the terms should be stored sorted. Luckily, doing so just involves switching a `HashMap` to become a `BTreeMap`.
 
 ```rust
+/// stores integer values for range queries
 struct IntegerIndex {
+    /// uses BTreeMap for efficient range queries
+    /// structure: number -> attribute -> document -> value positions
     content: BTreeMap<u64, HashMap<AttributeIndex, HashMap<EntryIndex, HashSet<ValueIndex>>>>,
 }
 ```
@@ -448,7 +552,10 @@ The text index, on the opposite, the input data gets processed, but we'll talk a
 Once again, we can follow a similar architecture than the two other indexes.
 
 ```rust
+/// stores tag values for exact matching
 struct TagIndex {
+    /// uses Box<str> to optimize memory usage
+    /// structure: tag -> attribute -> document -> value positions
     content: HashMap<Box<str>, HashMap<AttributeIndex, HashMap<EntryIndex, HashSet<ValueIndex>>>>,
 }
 ```
@@ -457,7 +564,7 @@ You can notice here that, instead of using `String`, we are using `Box<str>`. Th
 
 ### Text Index
 
-As I mentioned earlier, the text index is a bit more complicated than the tag index. When the tag index is made to return entries that contain a term with exact matching, the text index will provide functionalities to search inside the provided text: the tag index is for a single value like `alice` or `personal` while you give the text index complete sentences, articles, documents, etc. And on top of that, we'll want to be able to find some elements in that text even if there are some mistages in the query: `personnal` should match documents containing `this is a personal document`.
+As I mentioned earlier, the text index is a bit more complicated than the tag index. When the tag index is made to return entries that contain a term with exact matching, the text index will provide functionalities to search inside the provided text: the tag index is for a single value like `alice` or `personal` while you give the text index complete sentences, articles, documents, etc. And on top of that, we'll want to be able to find some elements in that text even if there are some mistakes in the query: `personnal` should match documents containing `this is a personal document`.
 
 So we'll have to adjust a bit the interface we used for the other indexes considering now, an input value will carry more information: an indexed attribute value will be composed of several tokens. A token will be defined by its term, it's position in the original text and the index in the list of tokens.
 
@@ -498,7 +605,10 @@ type TermPostings = HashMap<AttributeIndex, AttributePostings>;
 type AttributePostings = HashMap<EntryIndex, EntryPostings>;
 type EntryPostings = HashMap<ValueIndex, HashSet<(TokenIndex, Position)>>;
 
+/// stores processed text for full-text search
 struct TextIndex {
+    /// maps terms to their positions in documents
+    /// structure: term -> attribute -> document -> value -> (token_index, position)
     content: HashMap<Box<str>, TermPostings>,
 }
 ```
@@ -531,7 +641,36 @@ impl TextIndex {
 
 The `delete` method, on the other hand, remains the same.
 
+Index implementation summary:
+
+- Boolean Index: Simple true/false lookups
+- Integer Index: Range-based queries using BTreeMap
+- Tag Index: Exact match lookups with `Box<str>` optimization
+- Text Index: Full-text search with position tracking
+- All indexes implement self-cleaning for empty postings
+
+
 ### Shard Definition
+
+Here's how our sharding architecture organizes data across multiple shards:
+
+```ascii
+                 Manifest
+                +--------+
+                | shards |
+                +--------+
+                     |
+          +----------+-----------+
+          v          v           v
+    +---------+ +---------+ +---------+
+    | Shard 0 | | Shard 1 | | Shard 2 |
+    |---------| |---------| |---------|
+    | 0 - 100 | | 101-200 | | 201-300 |
+    +---------+ +---------+ +---------+
+        |           |           |
+    Collection  Collection  Collection
+     Indexes     Indexes     Indexes
+```
 
 At this point, we have everything we need to build a shard: a collection to list all the documents in the shard and an index for each type. A simple implementation of that shard would look like this.
 
@@ -577,26 +716,55 @@ struct Shard {
 
 This manifest will be stored in the working directory as `manifest.bin` and every file (collections and indexes) will have a random name.
 
+Sharding architecture highlights:
+- Manifest-based shard management
+- File-based storage with lazy loading
+- Transaction support for concurrent operations
+- Dynamic shard splitting based on size
+- Recovery mechanism for incomplete transactions
+
 #### Transaction Mechanism
 
 This level of abstraction for the manifest allows us to add or delete shards when needed but there's an issue: we cannot block the access to the search engine each time we insert a document. We should be able to insert a set of documents while using the index and just block its access when writing the updated manifest to disk.
 
 Following a similar mechanism to a transactional database, inserting data will require initializing a transaction, which will create a temporary manifest file which will contain the names of all the original indexes and the names of the indexes that have been updated. Updating a collection or an index will create a new file on disk but non updated indexes will remain the same.
 
+```ascii
+    Original State         Transaction             Committed State
+    +--------------+       +--------------+        +--------------+
+    | manifest.bin |       | manifest.tx  |        | manifest.bin |
+    +--------------+       +--------------+        +--------------+
+    | idx1.bin     |       | idx1.bin     |        | idx1.bin     |
+    | idx2.bin     |  -->  | idx2_new.bin |  -->   | idx2_new.bin |
+    | idx3.bin     |       | idx3.bin     |        | idx3.bin     |
+    +--------------+       +--------------+        +--------------+
+```
+
 This would give use this code for the shard management
 
 ```rust
+/// represents a file during a transaction
 struct TxFile {
+    /// original file path, if it exists
     // a shard can not have any boolean index but it can be created after an update
     base: Option<Filename>,
+    /// new file path after changes, if modified
     // the filename once the transaction is committed
     next: Option<Filename>,
 }
+
+/// represents a shard during a transaction
 struct TxShard {
+    /// collection file state
     collection: TxFile,
+    /// index files state for each kind
     indexes: HashMap<Kind, TxFile>,
 }
+
+/// manages the state of all shards during a transaction
 struct TxManifest {
+    /// maps shard keys to their transaction state
+    /// uses BTreeMap to maintain order for efficient splits
     shards: BTreeMap<u64, TxShard>,
 }
 ```
@@ -611,12 +779,14 @@ Before talking about how to shard, we should talk about when we should decide to
 
 Considering I've decided to leave the limit configurable depending on the size of the files, we have to be able to determine the size of a index file, once serialized and encrypted. Considering the time needed to serialize and encrypt is CPU bound (and after some experiments), writing the encrypted file to disk in order to determine its size brings too much overhead and kills the performance.
 
-The second option I came with was to compute the size of the index each time it gets updated. It's quite time consuming, it's the bruteforce way, but compared still peanuts compared to the time needed to serialize it and encrypting it. And we'll be able to improve this performance later, there's an entire section dedicated for that.
+The second option I came up with was to compute the size of the index each time it gets updated. It's quite time consuming, it's the bruteforce way, but compared still peanuts compared to the time needed to serialize it and encrypting it. And we'll be able to improve this performance later, there's an entire section dedicated for that.
 
 Considering the redondancy in the structure of the indexes, we can make something smart that won't require too much repeat. Let's implement a `ContentSize` that evaluates the size of the structure.
 
 ```rust
+/// provides size estimation for optimizing shard splits
 trait ContentSize {
+    /// returns estimated size in bytes when serialized
     fn estimate_size(&self) -> usize;
 }
 
@@ -636,6 +806,8 @@ const_size!(u8);
 
 // let's consider a string just for its content size
 impl<T: AsRef<str>> ContentSize for T {
+    /// estimates string size based on character count
+    /// note: This is an approximation and doesn't account for encoding overhead
     fn estimate_size(&self) -> usize {
         self.as_ref().len()
     }
@@ -643,6 +815,8 @@ impl<T: AsRef<str>> ContentSize for T {
 
 // for maps, similar
 impl<K: ContentSize, V: ContentSize> for HashMap<K, V> {
+    /// recursively estimates size of all keys and values
+    /// used to determine when to split shards
     fn estimate_size(&self) -> usize {
         self.iter().fold(0, |acc, (key, value)| acc + key.estimate_size() + value.estimate_size())
     }
@@ -653,12 +827,34 @@ With this in hand, we can implement it for all the indexes and we'll have a roug
 
 But now the question is: how to implement the sharding mechanism? It's quite simple and will be based on what we put in place earlier in this article.
 
-In the `Collection` struture lives a `BTreeMap` of all the entries by sharding value. A simple way to shard is just to split that `BTreeMap` at its center of gravity so that we have almost the same number of documents in both shard.
+Here's a visual example of how a shard splits:
+
+```ascii
+Before Split:
+    Shard 0 [0-200]
+    +---------------+
+    | Doc1  [50]    |
+    | Doc2  [75]    |
+    | Doc3  [125]   |
+    | Doc4  [175]   |
+    +---------------+
+
+After Split:
+    Shard 0 [0-100]     Shard 1 [101-200]
+    +---------------+   +----------------+
+    | Doc1  [50]    |   | Doc3  [125]    |
+    | Doc2  [75]    |   | Doc4  [175]    |
+    +---------------+   +----------------+
+```
+
+In the `Collection` structure lives a `BTreeMap` of all the entries by sharding value. A simple way to shard is just to split that `BTreeMap` at its center of gravity so that we have almost the same number of documents in both shard.
 
 Now we just have to implement a splitting function on the collection and all the indexes.
 
 ```rust
 impl Collection {
+    /// attempts to split the collection into two roughly equal parts
+    /// returns None if splitting is not possible (e.g., all documents have same shard value)
     fn split(&mut self) -> Option<Collection> {
         // if all the entries have the same sharding value, it's not possible to split considering
         // a sharding value can only be in one shard.
@@ -666,11 +862,13 @@ impl Collection {
             return None;
         }
 
+        // calculate target size for new collection
         let total_count = self.entries_by_name.len();
         let half_count = total_count / 2;
 
         let mut new_collection = Collection::default();
 
+        // keep moving entries until we reach approximately half size
         while new_collection.entries_by_name.len() < half_count && self.sharding.len() > 1 {
             // if this happens, it means we moved everything from the old shard,
             // which shouldn't happen considering that we check the number of shards
@@ -725,3 +923,27 @@ impl BooleanIndex {
 ```
 
 After this creation of a new shard, we can inject it in the transaction manifest, with the sharding key being the minimum of all the sharding keys, which can simply be accessed using the [`first_key_value` function of the `BTreeMap`](https://doc.rust-lang.org/std/collections/struct.BTreeMap.html#method.first_key_value). And at the next commit, it will be possible to search in it.
+
+## Conclusion
+
+In this second part of our series on building a search engine, we've laid out the core architecture for how documents are stored, indexed, and sharded. We've tackled several fundamental challenges:
+
+- Designing a flexible yet efficient document schema
+- Implementing specialized indexes for different data types
+- Creating a robust sharding mechanism
+- Building a transaction-safe storage system
+
+Our implementation prioritizes both performance and safety, with careful consideration for resource constraints across different platforms. The use of numeric indexes instead of strings, lazy loading of shards, and atomic transactions all contribute to making our search engine efficient and reliable.
+
+**Key Achievements:**
+- Type-safe document schema with support for multiple values
+- Memory-efficient index structures
+- Platform-independent storage abstraction
+- Transaction-safe operations
+- Dynamic sharding capability
+
+### What's Next?
+
+In the part 3: Search Implementation, we'll build upon these foundations to implement the actual search functionality.
+
+Stay tuned to learn how we'll turn these carefully designed data structures into a fully functional search engine that can handle complex queries across all our supported data types!
