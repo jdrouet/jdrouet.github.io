@@ -1,5 +1,5 @@
 +++
-title = "Building a search engine from scratch, in Rust"
+title = "Building a search engine from scratch, in Rust: introduction"
 description = "Or how to build a secure, blazingly fast search engine that works everywhere, from your browser to your phone, without compromising on features or performance."
 date = 2025-03-16
 
@@ -7,7 +7,7 @@ date = 2025-03-16
 emoji = "🦀"
 
 [taxonomies]
-tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "engineering", "performance"]
+tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "performance"]
 +++
 
 Have you ever wondered how search engines work under the hood? I'm not talking about vector search or anything fancy, but just the good old search engines that could really find what we would look for.
@@ -89,7 +89,7 @@ Next up, we'll dive into implementing the storage layer, where we'll face our fi
 
 **Series Outline:**
 - Part 0: Introduction (this article)
-- Part 1: Storage Layer Implementation
+- [Part 1: Storage Layer Implementation](../202503170800-search-engine-part-1/)
 - Part 2: Index Design and Management
 - Part 3: Search Implementation
 - Part 4: Performance
