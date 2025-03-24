@@ -7,21 +7,33 @@
       {%- endif %}
   </h2>
   <div class="page-info">
-    <div class="entry">
+    {%- if page.taxonomies.tags %}
+    <div class="page-tags  mb-1em">Tags = [
+    {%- for tag in page.taxonomies.tags %}
+    {%- set tag_url = get_taxonomy_url(kind="tags", name=tag) %}
+    <a href="{{ tag_url | safe }}" class="page-tag">{{ tag }}</a>
+    {%- if not loop.last %},
+    {%- endif %}
+    {%- endfor %} ]
+    </div>
+    {% endif %}
+    <div class="content mb-1em">
         {%- if page.description %}
         {{ page.description | safe }}
         {%- else %}
         {{ page.content | spaceless | striptags | truncate(length=200) }}
         {%- endif %}
     </div>
+    <div class="flex-row">
+        <time class="smaller flex-grow" datetime="{{ page.date | date(format="%Y-%m-%dT%H:%M:%S%:z") }}">
+            {{ macros::page_timestamp(page=page) }}
+        </time>
+        <div class="page-footer">
+            {%- if page.description %}
+            <a href="{{ page.permalink | safe }}" class="read-more">Read More</a>
+            {%- endif %}
+        </div>
+    </div>
   </div>
-  <time class="smaller" datetime="{{ page.date | date(format="%Y-%m-%dT%H:%M:%S%:z") }}">
-    {{ macros::page_timestamp(page=page) }}
-  </time>
 
-  <div class="page-footer">
-    {%- if page.description %}
-    <a href="{{ page.permalink | safe }}" class="read-more">Read More</a>
-    {%- endif %}
-  </div>
 </article>

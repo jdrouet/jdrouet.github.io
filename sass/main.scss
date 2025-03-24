@@ -97,6 +97,23 @@ nav {
   margin: 0 0 $xl 0;
 }
 
+/** Helpers **/
+
+.flex-row {
+    display: flex;
+    flex-diretion: row;
+}
+
+.flex-grow {
+    flex: 1;
+}
+
+.mb-1em {
+    margin-bottom: 1em;
+}
+
+/** Text helpers **/
+
 .smaller {
   font-size: 0.95em;
 }
@@ -312,18 +329,14 @@ footer {
 /* Pages/Posts
 */
 
-.page-info {
-  margin-bottom: 2em;
-}
-
-.page-info span {
-  font-weight: normal;
-  font-family: "Source Code Pro", monospace;
-  color: $amber;
-  letter-spacing: -0.03em;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1),
-    0 0 $sm rgba(255, 191, 0, 0.1),
-    0 0 10px rgba(255, 191, 0, 0.1);
+.page-info .page-tags {
+    font-weight: normal;
+    font-family: "Source Code Pro", monospace;
+    color: $amber;
+    letter-spacing: -0.03em;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1),
+      0 0 $sm rgba(255, 191, 0, 0.1),
+      0 0 10px rgba(255, 191, 0, 0.1);
 }
 
 .comments {
@@ -382,10 +395,6 @@ time {
 
 .page time {
   display: block;
-}
-
-time.page-time {
-  margin-top: 1em;
 }
 
 /* Pagination
