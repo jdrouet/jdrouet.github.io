@@ -90,9 +90,10 @@ Next up, we'll dive into implementing the storage layer, where we'll face our fi
 **Series Outline:**
 - Part 0: Introduction (this article)
 - [Part 1: Storage Layer Implementation](../202503170800-search-engine-part-1/)
-- Part 2: Index Design and Management
-- Part 3: Search Implementation
-- Part 4: Performance
-- Part 5: Synchronization
+- [Part 2: Document Schema and Indexes](../202503191700-search-engine-part-2/)
+- Part 3: Sharding and Transactions
+- Part 4: Search Implementation
+- Part 5: Performance Optimization
+- Part 6: Index Synchronization
 
 Stay tuned for the next article in this series, where we'll get our hands dirty with actual implementation. Whether you're a seasoned Rust developer or just getting started, this journey promises to be both educational and entertaining.
