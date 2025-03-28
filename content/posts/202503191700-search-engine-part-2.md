@@ -1,7 +1,7 @@
 +++
 title = "Building a search engine from scratch, in Rust: part 2"
 description = "Or how we'll go from a set of documents to a set of structured indexes."
-date = 2025-03-30
+date = 2025-03-28
 
 [extra]
 emoji = "🦀"
