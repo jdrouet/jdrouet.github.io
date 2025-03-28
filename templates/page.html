@@ -4,7 +4,11 @@
   {{- super() }}
 
   {%- if page.relative_path is starting_with("posts/") %}
-    {%- set description = page.content | spaceless | striptags | truncate(length=200) %}
+    {%- if page.description %}
+        {%- set description = page.description %}
+    {%- else %}
+        {%- set description = page.content | spaceless | striptags | truncate(length=200) %}
+    {%- endif %}
     {%- set type = "article" %}
   {%- else %}
     {%- if page.description %}

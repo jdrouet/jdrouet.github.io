@@ -51,7 +51,7 @@ Posted on {{ page.date | date(format=config.extra.timeformat | default(value="%B
 <link rel="canonical" href="{{ page_url | safe }}">
 
 {%- if config.extra.opengraph %}
-  <meta property="og:title" content="{{ title }}">
+  <meta property="og:title" content="{{ title_addition }}">
   <meta property="og:description" content="{{ description }}">
   <meta property="og:type" content="{{ type }}">
   <meta property="og:url" content="{{ page_url | safe }}">

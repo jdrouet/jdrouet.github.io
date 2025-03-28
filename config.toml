@@ -2,10 +2,10 @@
 base_url = "/"
 
 # The title of the site
-title = "Hello"
+title = "jdrouet"
 
 # The description of the site
-description = "Here are my projects, my thoughts and other things."
+description = "My projects, my thoughts and other things."
 
 author = "Jérémie Drouet"
 
