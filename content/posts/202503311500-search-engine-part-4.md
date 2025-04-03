@@ -132,6 +132,93 @@ Once again, we end up having a faily simple implementation.
 
 #### Text Filter
 
-And now it's time to tackle the big piece.
+And now it's time to tackle the big piece. Searching through text is only easy when looking for exact values. We need something more clever here.
 
-## Query Execution
+We want to have something that accepts mistakes (searching "Moovies" should catch "movie") and this is done by implementing some [fuzzy search](https://en.wikipedia.org/wiki/Approximate_string_matching).
+
+We also want something that allows to find words starting with a value (searching `title:starts_with("Artic")` should catch "Article"). This is a subset of the [wildcard search](https://en.wikipedia.org/wiki/Wildcard_character).
+
+This gives us the following filter
+
+```rust
+enum TextFilter {
+    // searching for the exact value
+    Equals { value: Box<str> },
+    // matching the prefix
+    StartsWith { prefix: Box<str> },
+    // fuzzy search
+    Matches { value: Box<str> },
+}
+```
+
+The `Equals` implementation is similar to the previous indexes so we'll skip it.
+
+##### Prefix Search
+
+In order to implement the `StartsWith` filter without going through the entire content of the index, we need to precompute a structure. This structure will be a simple tree where each node is a character.
+
+```rust
+#[derive(Debug, Default)]
+pub(super) struct TrieNode {
+    children: BTreeMap<char, TrieNode>,
+    term: Option<Box<str>>,
+}
+```
+
+That way, finding the words matching a prefix will just need to go through each letters of that prefix in the tree, and all children are the potential words.
+
+Finding the final node for the `StartsWith` filter is done as following
+
+```rust
+impl TrieNode {
+    fn find_starts_with(&self, mut value: Chars<'_>) -> Option<&TrieNode> {
+        let character = value.next()?;
+        self.children
+            .get(&character)
+            .and_then(|child| child.find_starts_with(value))
+    }
+}
+```
+
+And once we get the node, we need to iterate through the entire tree structure of the children to collect the matching words. This can be done by implementing an iterator.
+
+```rust
+#[derive(Debug, Default)]
+struct TrieNodeTermIterator<'n> {
+    queue: VecDeque<&'n TrieNode>,
+}
+
+impl<'t> TrieNodeTermIterator<'t> {
+    fn new(node: &'t TrieNode) -> Self {
+        Self {
+            queue: VecDeque::from_iter([node]),
+        }
+    }
+}
+
+impl Iterator for TrieNodeTermIterator<'_> {
+    type Item = Box<str>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.queue.pop_front()?;
+        self.queue.extend(next.children.values());
+        if let Some(value) = next.term {
+            Some(value.clone())
+        } else {
+            self.next()
+        }
+    }
+}
+
+impl TrieNode {
+    fn search(&self, prefix: &str) -> impl Iterator<Item = Box<str>> {
+        if let Some(found) = self.find_starts_with(prefix.chars()) {
+            TrieNodeTermIterator::new(found)
+        } else {
+            TrieNodeTermIterator::default()
+        }
+    }
+}
+```
+
+Once we have those words, we can simply deduce matching the entries.
