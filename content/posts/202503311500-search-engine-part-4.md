@@ -222,3 +222,295 @@ impl TrieNode {
 ```
 
 Once we have those words, we can simply deduce matching the entries.
+
+##### Fuzzy Search
+
+Fuzzy searching is done by extracting, for each words, all the possible subsets of `N` letters and creating an index from that. Then, when queried, we take the value to match against, extract all the possible subsets of `N` words, and the words *matching the most*, should be kept.
+
+In our case, we'll use `N=3`, because it's what's used in Postgres to improve the fuzzy search performance and it's suggested in [some research papers](https://onlinelibrary.wiley.com/doi/abs/10.1002/spe.4380180407).
+
+Building that trigram index will come at a cost: we'll have to process the entire index. But this should be relatively fast considering this is a simple process. Building the trigrams can be done using the [`substr-iterator` crate](https://crates.io/crates/substr-iterator).
+
+```rust
+#[derive(Default)]
+struct Trigrams<'a>(HashMap<[char; 3], HashSet<&'a str>>);
+
+impl<'a> Trigrams<'a> {
+    fn insert(&mut self, value: &str) {
+        TrigramIter::from(value).for_each(|trigram| {
+            let set: &mut HashSet<usize> = self.0.entry(trigram).or_default();
+            set.insert(value);
+        });
+    }
+}
+
+impl TextIndex {
+    fn trigrams(&self) -> Trigrams<'_> {
+        let mut res = Trigrams::default();
+        self.content.keys().for_each(|word| {
+            res.insert(word);
+        });
+        res
+    }
+}
+```
+
+Once this is done, we can search all the possible terms with the following function
+
+```rust
+impl<'a> Trigrams<'a> {
+    fn search(&self, term: &str) -> impl Iterator<Item = Box<str>> {
+        TrigramIter::from(term)
+            .filter_map(|tri| self.0.get(&tri))
+            .flatten()
+            // this is provided by the itertools crate
+            .unique()
+            .map(Box::from)
+    }
+}
+```
+
+##### Scoring The Matching entries
+
+Now that we have all the possible terms matching the filter, we need to provide some kind of score. But first, should we accept all the matching terms? Should querying `macro` match `pneumonoultramicroscopicsilicovolcanoconiosis`?
+
+Doing such a filtering can be done computing the [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) of the queried word with the word we found and only keep the word having a distance smaller than half of the length of the queried word. No need to reinvent the wheel here, the [`distance` crate](https://crates.io/crates/distance) implements it.
+
+Then, we'll compute the score for each term using the [Okapi BM25 algorithm](https://en.wikipedia.org/wiki/Okapi_BM25). For this, we'll need to know some numbers like, the collection size (number of entries in the shard), the size of the entry (number of tokens for the requested attribute) and the average length of the attribute accross all the collection.
+
+In order to avoid recomputing this for each search, we'll update the `TextIndex` to persist these values each time we update the text index.
+
+```rust
+pub struct TextIndex {
+    /// content of the text index
+    content: ...,
+    /// number of tokens per attribute
+    attributes: HashMap<AttributeIndex, u32>,
+    /// number of tokens per entry per attribute
+    entries: HashMap<EntryIndex, HashMap<AttributeIndex, u32>>,
+}
+```
+
+With these values persisted, querying the search engine can be done this way.
+
+```rust
+// FYI this piece of code is not supposed to compile, nor to be efficient
+
+impl TextIndex {
+    /// computes the score for each entry based on the found terms
+    fn compute_scores(
+        &self,
+        attribute: Option<AttributeIndex>,
+        matchings: HashMap<EntryIndex, HashMap<&str, usize>>,
+    ) -> HashMap<EntryIndex, f64> {
+        let collection_size = self.collection_size();
+        let avg_length = self.collection_avg_length(attribute);
+        matching
+            .into_iter()
+            .map(|(entry_index, terms)| {
+                let entry_length = self.entry_length(entry_index, attribute);
+                let mut score = 0.0;
+                for (term, freq_in_entry) in terms {
+                    let entries_with_term = self.count_entries_with_term(term, attribute);
+                    // have a look at the wikipedia page for the formula, it will be simpler to read
+                    let idf = compute_idf(collection_size, entries_with_term);
+                    score += compute_bm25_score(idf, freq_in_entry, entry_length, avg_length);
+                }
+                (entry_index, score)
+            })
+            .collec()
+    }
+
+    /// reduce the list of terms and return the entries matching the terms
+    fn reduce_matches(
+        &self,
+        attribute: Option<AttributeIndex>,
+        terms: impl Iterator<Item = &str>,
+    ) -> HashMap<EntryIndex, HashMap<&str, usize>> {
+        let mut res = HashMap::default();
+        for term in terms {
+            for entry_index in self.find_entries_for_term(term) {
+                let entry = res.entry(entry_index).or_default();
+                // count the occurences of that term in the entry
+                entry.entry(term).and_modify(|v| {
+                    *v += 1;
+                }).or_insert(1);
+            }
+        }
+        res
+    }
+
+    /// search through the index
+    fn search(
+        &self,
+        attribute: Option<AttributeIndex>,
+        filter: &TextFilter,
+    ) -> HashMap<EntryIndex, f64> {
+        let matching_terms = match filter {
+            TextFilter::StartsWith { prefix } => self.trienodes().search(prefix),
+            TextFilter::Matches { value } => self.trigrams().search(value),
+            TextFilter::Equals { value } => self.inner.get_term(value).into_iter(),
+        };
+        let matching_entries = self.reduce_matches(attribute, matching_terms)
+        self.compute_scores(attribute, matchings)
+    }
+}
+```
+
+With that code, we end up with a map of all the matching entries with a score.
+
+## Query Execution
+
+Now that we have a way to build the expression of the query, we can query individualy each index, it's time to plug everything together in order to execute a complete search.
+
+As a reminder, considering the engine is organised in shards, the search will simply being executing the search on every shard. But considering the search might take some time, the search should return the results each time a shard gets processed.
+
+```rust
+impl SearchEngine {
+    async fn search<Cb>(&self, expression: &Expression, callback: Cb) -> std::io::Result<usize>
+    where
+        Cb: Fn(HashMap<EntryIndex, f64>)
+    {
+        let mut found = 0;
+        for (_shard_key, shard) in self.shards {
+            let result = shard.search(expression).await?;
+            found += result.len();
+            callback(result);
+        }
+        Ok(found)
+    }
+}
+```
+
+After defining the high level, we can go one level down, and look at how it works at the shard level.
+
+### Caching File Content
+
+A shard is only defined by the names of the files it's composed of.
+
+```rust
+struct ShardManifest {
+    /// the collection is mandatory, it's the index of all the entries
+    /// if it's none, there's no entry, so there's no shard
+    collection: Box<str>,
+    /// then every index is optional (except the integer index, but we'll keep the same idea)
+    boolean: Option<Box<str>>,
+    integer: Option<Box<str>>,
+    tag: Option<Box<str>>,
+    text: Option<Box<str>>,
+}
+```
+
+Which means that, for each condition in the search expression, we'll need to load the collection to find the `AttributeIndex` for the given attribute name, and then load the corresponding index and execute the query. We could load all of the indexes when starting a search in the shard but we might not need all of them and considering the decryption cost, we should avoid that.
+
+So let's add a level of abstraction for the shard.
+
+```rust
+struct Shard {
+    /// this is loaded anyway
+    collection: Collection,
+    /// then we create a cache
+    boolean: Option<CachedEncryptedFile<BooleanIndex>>,
+    integer: Option<CachedEncryptedFile<IntegerIndex>>,
+    tag: Option<CachedEncryptedFile<TagIndex>>,
+    text: Option<CachedEncryptedFile<TextIndex>>,
+}
+
+struct CachedEncryptedFile<T> {
+    file: EncryptedFile,
+    cache: async_lock::OnceCell<T>,
+}
+
+impl<T: serde::de::DeserializedOwned> CachedEncryptedFile<T> {
+    async fn get(&self) -> std::io::Result<&T> {
+        self.cache
+            // here we only deserialize the file when we need to access it
+            // and it remains cached
+            .get_or_try_init(|| async { self.file.deserialize::<T>().await })
+            .await
+    }
+}
+```
+
+With that level of abstraction, we're sure the files are only loaded once in memory.
+
+### Calling Async Code In Every Condition
+
+Now it's time to face the next problem: executing the query. From a first point of view, it should be fairly simple, the expression is a dumb tree where the leaves are conditions. So, to run this, we could just recursively call the indexes in the conditions and reduce at the expression level.
+
+```rust
+impl Shard {
+    async fn search(&self, expression: &Expression) -> HashMap<EntryIndex, f64> {
+        expression.execute(self).await
+    }
+}
+
+impl Expression {
+    async fn execute(&self, shard: &Shard) -> HashMap<EntryIndex, f64> {
+        match self {
+            Expression::Condition(condition) => condition.execute(shard).await,
+            Expression::And(left, right) => {
+                let left_res = left.execute(shard).await?;
+                let right_res = right.execute(shard).await?;
+                reduce_and(left_res, right_res)
+            },
+            Expression::Or(left, right) => {
+                let left_res = left.execute(shard).await?;
+                let right_res = right.execute(shard).await?;
+                reduce_or(left_res, right_res)
+            }
+        }
+    }
+}
+```
+
+But this will not work because doing recursive calls in async is a pain. So we should try make this sequencial.
+
+To make this sequential, the trick is to create an iterator in the `Expression` tree. That way, the following expression tree should be serialized as follow
+
+```
+             author:"alice"
+           /
+        OR
+      /    \
+     /       author:"bob"
+    /
+AND
+    \
+     \
+      \
+        title:"Hello"
+
+[cond(author:"alice"), cond(author:"bob"), OR, cond(title:"Hello"), AND]
+```
+
+So that we can use a [Reverse Polish Notation](https://en.wikipedia.org/wiki/Reverse_Polish_notation) to compute the scores.
+
+```rust
+impl Expression {
+    async fn execute(&self, shard: &Shard) -> HashMap<EntryIndex, f64> {
+        let mut stack = Vec::new();
+
+        for item in self.iter() {
+            match item {
+                Item::Condition(cond) => {
+                    let result = condition.execute(shard).await?;
+                    stack.push(result);
+                }
+                // kind is AND/OR
+                Item::Expression(kind) => {
+                    let right = stack.pop().unwrap();
+                    let left = stack.pop().unwrap();
+                    stack.push(aggregate(kind, left, right));
+                }
+            }
+        }
+
+        Ok(stack.pop().unwrap_or_default())
+    }
+}
+```
+
+Which fixes the problem of not being able to execute async calls.
+
+> We could have used a crate like [`async-recursion`](https://crates.io/crates/async-recursion) to handle this but I find this solution more elegant.
