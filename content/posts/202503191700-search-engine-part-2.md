@@ -52,7 +52,7 @@ let message = Document::new("message_id")
     .attribute("encrypted", true); // boolean
 ```
 
-It looks like a fairly simple.
+This is a fairly simple implementation.
 
 Now, in [the introduction](../202503161800-search-engine-intro/), it was mentioned that the content of the index should be sharded. Sharding means we have to define a way to group documents. As a matter of simplicity, the sharding mechanism will be just based on an integer attribute defined in the document but if you want to look at more complex mechanism, I'll invite you to have a look at how [PostgreSql does it](https://www.postgresql.org/docs/current/ddl-partitioning.html).
 
