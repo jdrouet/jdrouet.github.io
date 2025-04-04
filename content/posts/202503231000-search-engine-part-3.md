@@ -51,7 +51,7 @@ struct Shard {
 }
 ```
 
-But this is a single shard representation, we might have several an need to have a representation as well.
+But this is a single shard representation, we might have several and need to have a representation for all of them.
 
 ```rust
 struct Manager {
@@ -61,7 +61,7 @@ struct Manager {
 
 With this representation, the `u64` in the `BTreeMap` will represent the minimum in the range of partition handled by that shard. When initialized, the first shard key will be `0`.
 
-But the two previous representation are actually wrong: this would mean that we'll load in memory the entire search engine, which doesn't scale. Instead, the `Shard` structure will only contain the filenames of the collection and indexes, which will be loaded in memory only when needed, and written to disk when they are not needed anymore.
+But the two previous representations are actually wrong: this would mean that we'll load in memory the entire search engine, which doesn't scale. Instead, the `Shard` structure will only contain the filenames of the collection and indexes, which will be loaded in memory only when needed, and written to disk when they are not needed anymore.
 
 The `Manager` structure can then be renamed to `Manifest` and will be, as well, persisting on disk, representing the state of the search engine at a given point in time.
 
@@ -102,7 +102,7 @@ Following a similar mechanism to a transactional database, inserting data will r
     +--------------+       +--------------+        +--------------+
 ```
 
-This would give use this code for the shard management
+This would give us this code for shard management
 
 ```rust
 /// represents a file during a transaction
@@ -131,7 +131,7 @@ struct TxManifest {
 }
 ```
 
-This transaction manifest would be written down to the filesystem depending on the platform: in the browser, we cannot know when the page will be closed so better write it after each operation, while on mobile, the app can do a simple operation before closing. This provides a nice way of being able to recover a transaction that has not been committed.
+This transaction manifest would be written to the filesystem depending on the platform: in the browser, since we cannot know when the page will be closed, it's better to write it after each operation, while on mobile, the app can do a simple operation before closing. This provides a nice way of being able to recover a transaction that has not been committed.
 
 That commit operation simply consists in, for each file of each shard, taking the `next` filename if exists or the `base` one, and write it in the `manifest.bin`. This commit operation is atomic, and then less prone to errors.
 
@@ -141,9 +141,9 @@ Before talking about how to shard, we should talk about when we should decide to
 
 Considering I've decided to leave the limit configurable depending on the size of the files, we have to be able to determine the size of a index file, once serialized and encrypted. Considering the time needed to serialize and encrypt is CPU bound (and after some experiments), writing the encrypted file to disk in order to determine its size brings too much overhead and kills the performance.
 
-The second option I came up with was to compute the size of the index each time it gets updated. It's quite time consuming, it's the bruteforce way, but compared still peanuts compared to the time needed to serialize it and encrypting it. And we'll be able to improve this performance later, there's an entire section dedicated for that.
+The second option I came up with was to compute the size of the index each time it gets updated. It's quite time consuming and uses a brute-force approach, but it's still minimal compared to the time needed to serialize and encrypt it. And we'll be able to improve this performance later, there's an entire section dedicated for that.
 
-Considering the redondancy in the structure of the indexes, we can make something smart that won't require too much repeat. Let's implement a `ContentSize` that evaluates the size of the structure.
+Considering the redundancy in the structure of the indexes, we can make something smart that won't require too much repeat. Let's implement a `ContentSize` that evaluates the size of the structure.
 
 ```rust
 /// provides size estimation for optimizing shard splits
@@ -232,7 +232,7 @@ impl Collection {
 
         // keep moving entries until we reach approximately half size
         while new_collection.entries_by_name.len() < half_count && self.sharding.len() > 1 {
-            // if this happens, it means we moved everything from the old shard,
+            // if this happens, it means we moved everything from the old shard, which shouldn't be possible
             // which shouldn't happen considering that we check the number of shards
             let Some((shard_value, entries)) = self.sharding.pop_last() {
                 return new_collection;
@@ -253,7 +253,7 @@ impl Collection {
 }
 ```
 
-This will give use a new collection if it was possible to split it. If it's possible, we can now split all the indexes.
+This will give us a new collection if it was possible to split it. If it's possible, we can now split all the indexes.
 
 ```rust
 // similar for each index
