@@ -10,7 +10,7 @@ emoji = "🦀"
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "performance"]
 +++
 
-In the [previous article](../202503170800-search-engine-part-1/), I explained how we'll write on disk and how we'll implement an abstraction so that it works on any device as well as in the browser. Now, it's time to start thinking about what we'll be storing and in what shape.
+In the [previous article](../202503170800-search-engine-part-1/), I explained how we'll write on disk and how we'll implement an abstraction so that it works on any device as well as in the browser. Now, it's time to think about what we'll store and in what format.
 
 ## Defining A Document
 
@@ -20,11 +20,11 @@ The consequence of this it that the document that are being indexed, most of the
 
 If we look at an example of search engine like [Tantivy](https://github.com/quickwit-oss/tantivy), indexing a document requires the definition of a schema. Using a similar pattern here seems fairly legit.
 
-On the other side, if we look at [Elasticsearch](https://www.elastic.co/elasticsearch), the data structure is a bit more free. And indexed document can contain some nested attributes that are then flattened when being indexed. This means that the cardinality of attributes is almost infinite. This works well when you work on a server with a huge about of RAM and a but CPU, but when it comes to the browser on an old mobile, it's better to give it some limitations.
+On the other side, if we look at [Elasticsearch](https://www.elastic.co/elasticsearch), the data structure is a bit more free. An indexed document can contain some nested attributes that are then flattened when being indexed. This means that the cardinality of attributes is almost infinite. This works well when you work on a server with a huge about of RAM and a big CPU, but when it comes to the browser on an old mobile, it's better to give it some limitations.
 
 That being said, a use case has to be considered: if a document has tags (like the names of the recipients of a message), it would be great to be able to search through them without having to define `n` independent attributes. To avoid this, it should support arrays.
 
-Now, to optimise querying later on and avoid querying with some integers an attribute that contains only text, the schema should be aware of the type of an attribute.
+Now, to optimize querying later and avoid querying with some integers an attribute that contains only text, the schema should be aware of the type of an attribute.
 
 So let's write down some ground rules:
 - a schema has a finite number of attributes
@@ -232,7 +232,7 @@ So basically, we'll do a link between the data and the document identifier: from
 type Index = Map<Term, Map<DocumentIdentifier, Count>>;
 ```
 
-And this would be reproduced for every index, and for every term. When you think about the `DocumentIdentifier`, which would be a `String`, each term would have a cost of [`size_of(DocumentIdentifier)`](https://doc.rust-lang.org/std/mem/fn.size_of.html) which is **at least** equal to the size of the string (plus some bytes depending on if we use `String` or `Box<str>`). This doesn't scale for big documents containing many terms and big identifiers, we need to use a different approach.
+This would be reproduced across every index and term. When you think about the `DocumentIdentifier`, which would be a `String`, each term would have a cost of [`size_of(DocumentIdentifier)`](https://doc.rust-lang.org/std/mem/fn.size_of.html) which is **at least** equal to the size of the string (plus some bytes depending on if we use `String` or `Box<str>`). This doesn't scale well for large documents containing many terms and big identifiers, we need to use a different approach.
 
 ### The Collection File
 
@@ -342,7 +342,7 @@ Notice the use of [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.htm
 
 > One could ask, considering the advantage of `Arc<str>`, why not writing that directly to disk or use it in the other indexes. Well, it doesn't work when serialized. [`Arc<str>`](https://doc.rust-lang.org/std/sync/struct.Arc.html) contains a pointer in memory of where the string is. When serialize/deserialize, this memory address changes, so the serializer just replaces the pointer with its actual value, which means duplication of data.
 
-Now, let's take a step back. In the current `Index` representation, there's no mention of attribute, but the attribute is quite similar to the document identifier: we don't know how big it could be and the size on disk is related to the size of the string. Might be worst adding it in our collection structure. And considering we'll need to access the attribute name by an `AttributeIndex` and the other way around, we need to implement a similar mechanism.
+Now, let's take a step back. In the current `Index` representation, there's no mention of attribute, but the attribute is quite similar to the document identifier: we don't know how big it could be and the size on disk is related to the size of the string. Might be worst adding it in our collection structure. And since we'll need to access the attribute name by an `AttributeIndex` and the other way around, we need to implement a similar mechanism.
 
 ```rust
 /// Let's keep a fairly low number of attributes, 256 attributes should be enough
@@ -400,7 +400,7 @@ Term Index
 
 ### Boolean Index
 
-Now let's start with a simple index, the boolean index. This will only have a simple use cases: fetching the entries where an attribute is `true` or `false`.
+Now let's start with a simple index, the boolean index. This will only have simple use cases: fetching the entries where an attribute is `true` or `false`.
 
 So if we follow the structure we defined earlier, we'd end up with the following tructure.
 
@@ -417,7 +417,7 @@ struct BooleanIndex {
 
 Where `ValueIndex` is the index of that term, for an attribute, for that entry.
 
-That way, inserting an value can be done this way.
+That way, inserting a value can be done this way.
 
 ```rust
 impl BooleanIndex {
@@ -568,7 +568,7 @@ As I mentioned earlier, the text index is a bit more complicated than the tag in
 
 So we'll have to adjust a bit the interface we used for the other indexes considering now, an input value will carry more information: an indexed attribute value will be composed of several tokens. A token will be defined by its term, it's position in the original text and the index in the list of tokens.
 
-Processing that input will consist in extracting the words from the input text, lowercase them and apply some [stemming](https://en.wikipedia.org/wiki/Stemming) before inserting all the terms in the index. The first ones are fairly simple but the stemming mechanism can be quite complicated, especially when we consider doing something that handles multiple languages.
+Processing that input will consist in extracting the words from the input text, lowercase them and apply some [stemming](https://en.wikipedia.org/wiki/Stemming) before inserting all the terms in the index. The first ones are fairly simple, but the stemming mechanism can be quite complicated, especially when we consider doing something that handles multiple languages.
 
 Here is a simple example of how the preprocessing process should work. I removed the complexity from the `capture_all` and `stem` function to make it simpler to read. Those functions will just be the ones provided by the [`regex` crate](https://crates.io/crates/regex) and the [`rust-stemmers` crate](https://crates.io/crates/rust-stemmers).
 
@@ -595,7 +595,7 @@ let tokens = capture_all(r"(\w{3,20})", input)
 // { term: "tomato", index: 4, position: 25 }
 ```
 
-And we'll require to store those positions in the index as well, considering a term could occur several time in the same attribute value.
+And we'll need to store those positions in the index as well, since a term could occur several time in the same attribute value.
 
 ```rust
 type Position = u32;
