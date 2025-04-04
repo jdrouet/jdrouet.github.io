@@ -514,3 +514,50 @@ impl Expression {
 Which fixes the problem of not being able to execute async calls.
 
 > We could have used a crate like [`async-recursion`](https://crates.io/crates/async-recursion) to handle this but I find this solution more elegant.
+
+### Joining The results
+
+We have some discrepencies in our search implementations. The `TextIndex` returns a `HashMap<EntryIndex, f64>` while the others return a `HashSet<EntryIndex>`. This is due to the lack of score in the other indexes. In order to be able to search with only those indexes (boolean, integer or tag), we need to implement that scoring mechanism as well.
+
+> The logic is fairly straightforward and similar to what was done in the text index, so I'll leave it up to you here.
+
+The idea here now is to implement that `aggregate` function we used in the piece of code above. We will try to normalise the scores in `0..1` to make them equally important and to prevent a score inflation.
+
+```rust
+fn normalise(results: HashMap<EntryIndex, f64>) -> HashMap<EntryIndex, f64> {
+    let max = scores.values().copied().fold(0.0, f64::max);
+    scores.values_mut().for_each(|value| {
+        *value /= max;
+    });
+    scores
+}
+
+fn aggregate(kind: Kind, mut left: HashMap<EntryIndex, f64>, mut right: HashMap<EntryIndex, f64>) -> f64 {
+    let left = normalise(left);
+    let right = normalise(right);
+    match kind {
+        // we want the intersection
+        Kind::And => left.into_iter()
+            .filter_map(|(entry_index, score_left)| {
+                right
+                    .remove(&entry_index)
+                    // we use a multiplication to join scores
+                    .map(|score_right| (entry_index, score_left * score_right))
+            })
+            .collect(),
+        // we want the union
+        Kind::Or => right.drain().for_each(|(entry_index, right_score)| {
+            left.entry(entry_index)
+                .and_modify(|left_score| {
+                    // we use the addition to join scores
+                    *left_score += right_score;
+                })
+                .or_insert(right_score);
+        }),
+    }
+}
+```
+
+With this implementation, each index and each field is equally important. To make the result more relevant, we could introduce a system of weights (or boost) in the equation.
+
+And now that we have a final score for our query, we can simply match the `EntryIndex` to the original identifier from the collection and return the content in the callback.
