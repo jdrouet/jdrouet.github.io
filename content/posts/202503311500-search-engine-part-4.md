@@ -10,13 +10,13 @@ emoji = "🦀"
 tags = ["rust", "search-engine", "webassembly", "encryption", "cross-platform", "tutorial", "performance"]
 +++
 
-In the [part 2](../202503191700-search-engine-part-2/) and [part 3](../202503231000-search-engine-part-3/), we implemented the way to store the indexed data and to split them in small enough pieces for the search engine to remain efficient, due to the encryption bottleneck. Now, it's time to get read access in all this and search for the entries we have in the indexes.
+In the [part 2](../202503191700-search-engine-part-2/) and [part 3](../202503231000-search-engine-part-3/), we implemented the way to store the indexed data and to split them in small enough pieces for the search engine to remain efficient, due to the encryption bottleneck. Now, it's time to implement read access and search functionality for our indexed entries.
 
 ## Query Definition
 
 In order to execute a search, the user first needs to define its query. Considering the indexes we have, we'll have to define, for each index, a set of filters that could be executed, but we'll define them later in that article.
 
-Those filters will be applied to a given attribute, but not always. We can totally imagine filtering on some text, whatever the attribute, like filtering all articles having "Hello" in them, in the title or the content, with a single condition. On the other side, it's hard to imagine a use case where the user will want any article with a boolean value, whatever the attribute. That being said, this responsibility will be left to the user building the query.
+These filters can be applied to specific attributes, though this isn't always necessary. For example, we might want to search for text across all attributes, like filtering all articles having "Hello" in them, in the title or the content, with a single condition. On the other side, it's hard to imagine a use case where the user will want any article with a boolean value, whatever the attribute. That being said, this responsibility will be left to the user building the query.
 
 And finally, those conditions can be combined into an expression, with `AND` or `OR`.
 
@@ -49,9 +49,15 @@ enum Expression {
 }
 ```
 
+**Key Points:**
+- Flexible query language supporting complex boolean expressions
+- Typed filters for different data types
+- Optional attribute targeting for conditions
+- Composable expressions using AND/OR operators
+
 ### Filter Definition
 
-The tag and boolean filters should be fairly simple: the entry matches the expected term or not. Giving us the following simple filters.
+The tag and boolean filters are straightforward: an entry either matches the expected term or it doesn't. This leads to the following simple filter implementations:
 
 ```rust
 enum BooleanFilter {
@@ -130,11 +136,17 @@ impl IntegerIndex {
 
 Once again, we end up having a faily simple implementation.
 
+**Filter Implementation Achievements:**
+- Boolean filters for simple true/false matching
+- Integer filters supporting range queries
+- Tag filters for exact string matching
+- Memory-efficient implementation using numeric indexes
+
 #### Text Filter
 
-And now it's time to tackle the big piece. Searching through text is only easy when looking for exact values. We need something more clever here.
+Now let's tackle the most complex piece. Searching through text is only easy when looking for exact values. We need something more clever here.
 
-We want to have something that accepts mistakes (searching "Moovies" should catch "movie") and this is done by implementing some [fuzzy search](https://en.wikipedia.org/wiki/Approximate_string_matching).
+We want to support fuzzy matching, where searching for "Moovies" would match "movie" and this is done by implementing some [fuzzy search](https://en.wikipedia.org/wiki/Approximate_string_matching).
 
 We also want something that allows to find words starting with a value (searching `title:starts_with("Artic")` should catch "Article"). This is a subset of the [wildcard search](https://en.wikipedia.org/wiki/Wildcard_character).
 
@@ -276,7 +288,7 @@ Now that we have all the possible terms matching the filter, we need to provide 
 
 Doing such a filtering can be done computing the [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) of the queried word with the word we found and only keep the word having a distance smaller than half of the length of the queried word. No need to reinvent the wheel here, the [`distance` crate](https://crates.io/crates/distance) implements it.
 
-Then, we'll compute the score for each term using the [Okapi BM25 algorithm](https://en.wikipedia.org/wiki/Okapi_BM25). For this, we'll need to know some numbers like, the collection size (number of entries in the shard), the size of the entry (number of tokens for the requested attribute) and the average length of the attribute accross all the collection.
+Next, we'll compute scores for each term using the [Okapi BM25 algorithm](https://en.wikipedia.org/wiki/Okapi_BM25). For this, we'll need several metrics including the collection size (number of entries in the shard), the size of the entry (number of tokens for the requested attribute) and the average length of the attribute accross all the collection.
 
 In order to avoid recomputing this for each search, we'll update the `TextIndex` to persist these values each time we update the text index.
 
@@ -359,11 +371,18 @@ impl TextIndex {
 
 With that code, we end up with a map of all the matching entries with a score.
 
+**Text Search Achievements:**
+- Prefix search using trie data structure
+- Fuzzy search using trigram indexing
+- Levenshtein distance filtering for result relevance
+- BM25 scoring for accurate result ranking
+- Efficient caching of collection statistics
+
 ## Query Execution
 
 Now that we have a way to build the expression of the query, we can query individualy each index, it's time to plug everything together in order to execute a complete search.
 
-As a reminder, considering the engine is organised in shards, the search will simply being executing the search on every shard. But considering the search might take some time, the search should return the results each time a shard gets processed.
+As a reminder, considering the engine is organised in shards, the search will simply being executing the search on every shard. But considering the search might take some time, the search should return the results as each shard is processed.
 
 ```rust
 impl SearchEngine {
@@ -403,7 +422,7 @@ struct ShardManifest {
 
 Which means that, for each condition in the search expression, we'll need to load the collection to find the `AttributeIndex` for the given attribute name, and then load the corresponding index and execute the query. We could load all of the indexes when starting a search in the shard but we might not need all of them and considering the decryption cost, we should avoid that.
 
-So let's add a level of abstraction for the shard.
+Let's add an abstraction layer for the shard.
 
 ```rust
 struct Shard {
@@ -464,7 +483,7 @@ impl Expression {
 }
 ```
 
-But this will not work because doing recursive calls in async is a pain. So we should try make this sequencial.
+However, this approach won't work well because recursive async calls are problematic. So we should convert this to a sequential process.
 
 To make this sequential, the trick is to create an iterator in the `Expression` tree. That way, the following expression tree should be serialized as follow
 
@@ -480,7 +499,7 @@ AND
      \
       \
         title:"Hello"
-
+e
 [cond(author:"alice"), cond(author:"bob"), OR, cond(title:"Hello"), AND]
 ```
 
@@ -517,11 +536,11 @@ Which fixes the problem of not being able to execute async calls.
 
 ### Joining The results
 
-We have some discrepencies in our search implementations. The `TextIndex` returns a `HashMap<EntryIndex, f64>` while the others return a `HashSet<EntryIndex>`. This is due to the lack of score in the other indexes. In order to be able to search with only those indexes (boolean, integer or tag), we need to implement that scoring mechanism as well.
+We have some inconsistencies in our search implementations. The `TextIndex` returns a `HashMap<EntryIndex, f64>` while the others return a `HashSet<EntryIndex>`. This is due to the lack of score in the other indexes. In order to be able to search with only those indexes (boolean, integer or tag), we need to implement that scoring mechanism as well.
 
 > The logic is fairly straightforward and similar to what was done in the text index, so I'll leave it up to you here.
 
-The idea here now is to implement that `aggregate` function we used in the piece of code above. We will try to normalise the scores in `0..1` to make them equally important and to prevent a score inflation.
+Now we need to implement the `aggregate` function we used in the piece of code above. We will try to normalise the scores in `0..1` to make them equally important and to prevent a score inflation.
 
 ```rust
 fn normalise(results: HashMap<EntryIndex, f64>) -> HashMap<EntryIndex, f64> {
@@ -560,4 +579,31 @@ fn aggregate(kind: Kind, mut left: HashMap<EntryIndex, f64>, mut right: HashMap<
 
 With this implementation, each index and each field is equally important. To make the result more relevant, we could introduce a system of weights (or boost) in the equation.
 
-And now that we have a final score for our query, we can simply match the `EntryIndex` to the original identifier from the collection and return the content in the callback.
+With our final query scores calculated, we can simply match the `EntryIndex` to the original identifier from the collection and return the content in the callback.
+
+**Query Engine Achievements:**
+- Lazy loading of indexes through caching
+- Efficient async execution using sequential processing
+- Memory-efficient query evaluation using RPN
+- Normalized scoring across different index types
+- Extensible aggregation system for combining results
+
+## Conclusion
+
+In this fourth part of our search engine series, we've implemented a flexible and efficient search system that works across our different index types. We've tackled several key challenges:
+
+**Key Achievements:**
+- Built a flexible query language supporting complex boolean expressions
+- Implemented specialized filters for different data types
+- Created an efficient fuzzy search system using trigrams
+- Added prefix search capabilities using tries
+- Developed a robust scoring system based on BM25
+
+Our implementation carefully balances functionality with performance. By using cached file access and converting recursive operations to sequential ones, we've maintained good performance even with encryption overhead. The scoring system ensures results are relevant while remaining computationally efficient.
+
+The search engine now supports various query types:
+- Simple boolean matching (`public:true`)
+- Range queries for numbers (`created_at > 123456789`)
+- Exact matching for tags (`author:"alice"`)
+- Fuzzy text search with prefix matching (`title:starts_with("prog")`)
+- Complex expressions combining multiple conditions
