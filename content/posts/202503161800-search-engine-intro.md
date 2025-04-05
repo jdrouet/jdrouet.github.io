@@ -92,7 +92,7 @@ Next up, we'll dive into implementing the storage layer, where we'll face our fi
 - [Part 1: Storage Layer Implementation](../202503170800-search-engine-part-1/)
 - [Part 2: Document Schema and Indexes](../202503191700-search-engine-part-2/)
 - [Part 3: Sharding and Transactions](../202503231000-search-engine-part-3/)
-- Part 4: Search Implementation
+- [Part 4: Search Implementation](../202503311500-search-engine-part-4/)
 - Part 5: Performance Optimization
 - Part 6: Index Synchronization
 
