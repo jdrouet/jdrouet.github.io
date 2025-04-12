@@ -543,7 +543,7 @@ We have some inconsistencies in our search implementations. The `TextIndex` retu
 Now we need to implement the `aggregate` function we used in the piece of code above. We will try to normalise the scores in `0..1` to make them equally important and to prevent a score inflation.
 
 ```rust
-fn normalise(results: HashMap<EntryIndex, f64>) -> HashMap<EntryIndex, f64> {
+fn normalise(mut scores: HashMap<EntryIndex, f64>) -> HashMap<EntryIndex, f64> {
     let max = scores.values().copied().fold(0.0, f64::max);
     scores.values_mut().for_each(|value| {
         *value /= max;
@@ -551,7 +551,7 @@ fn normalise(results: HashMap<EntryIndex, f64>) -> HashMap<EntryIndex, f64> {
     scores
 }
 
-fn aggregate(kind: Kind, mut left: HashMap<EntryIndex, f64>, mut right: HashMap<EntryIndex, f64>) -> f64 {
+fn aggregate(kind: Kind, mut left: HashMap<EntryIndex, f64>, mut right: HashMap<EntryIndex, f64>) -> HashMap<EntryIndex, f64> {
     let left = normalise(left);
     let right = normalise(right);
     match kind {
@@ -565,14 +565,17 @@ fn aggregate(kind: Kind, mut left: HashMap<EntryIndex, f64>, mut right: HashMap<
             })
             .collect(),
         // we want the union
-        Kind::Or => right.drain().for_each(|(entry_index, right_score)| {
-            left.entry(entry_index)
-                .and_modify(|left_score| {
-                    // we use the addition to join scores
-                    *left_score += right_score;
-                })
-                .or_insert(right_score);
-        }),
+        Kind::Or => {
+            right.drain().for_each(|(entry_index, right_score)| {
+                left.entry(entry_index)
+                    .and_modify(|left_score| {
+                        // we use the addition to join scores
+                        *left_score += right_score;
+                    })
+                    .or_insert(right_score);
+            });
+            left
+        },
     }
 }
 ```
